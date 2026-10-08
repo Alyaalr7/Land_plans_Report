@@ -1,0 +1,165 @@
+﻿@using Land_plans_Report.Models
+@using Land_plans_Report.Helpers
+@model ReportFormViewModel
+
+<div data-wizard-step="1">
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">1</div>
+            <div><h4>بيانات المستفيد</h4><p>يسترجع اسم المستفيد تلقائياً بعد التحقق من رقم الهوية</p></div>
+        </div>
+        <div class="form-section-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label for="Plot_BeneficiaryNationalId">رقم الهوية الوطنية <span class="req">*</span></label>
+                    <input asp-for="Plot.BeneficiaryNationalId" inputmode="numeric" maxlength="10" dir="ltr" autocomplete="off" data-latin-digits />
+                    <small class="field-hint">10 أرقام تبدأ بـ 1 أو 2</small>
+                    <span asp-validation-for="Plot.BeneficiaryNationalId"></span>
+                </div>
+                <div class="field">
+                    <label for="Plot_BeneficiaryName">اسم المستفيد <span class="req">*</span></label>
+                    <input asp-for="Plot.BeneficiaryName" maxlength="200" />
+                    <span asp-validation-for="Plot.BeneficiaryName"></span>
+                </div>
+                <div class="field">
+                    <label for="Plot_BeneficiaryPhone">رقم الجوال <span class="req">*</span></label>
+                    <input asp-for="Plot.BeneficiaryPhone" type="tel" inputmode="tel" maxlength="13" dir="ltr" autocomplete="tel" data-latin-digits />
+                    <small class="field-hint">بصيغة 05XXXXXXXX</small>
+                    <span asp-validation-for="Plot.BeneficiaryPhone"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">2</div>
+            <div><h4>بيانات قطعة الأرض</h4><p>ربط القطعة بالمخطط وتحديد موقعها</p></div>
+        </div>
+        <div class="form-section-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label>كود المخطط <span class="req">*</span></label>
+                    <input asp-for="Plot.PlanCode" maxlength="50" />
+                    <span asp-validation-for="Plot.PlanCode"></span>
+                </div>
+                <div class="field">
+                    <label>اسم المخطط <span class="req">*</span></label>
+                    <input asp-for="Plot.PlanName" maxlength="200" />
+                    <span asp-validation-for="Plot.PlanName"></span>
+                </div>
+                <div class="field">
+                    <label>رقم القطعة <span class="req">*</span></label>
+                    <input asp-for="Plot.PlotNumber" maxlength="50" />
+                    <span asp-validation-for="Plot.PlotNumber"></span>
+                </div>
+                <div class="field">
+                    <label>المنطقة <span class="req">*</span></label>
+                    <select asp-for="Plot.Region">
+                        <option value="">اختر المنطقة</option>
+                        @foreach (var region in Locations.Regions)
+                        {
+                            <option value="@region">@region</option>
+                        }
+                    </select>
+                    <span asp-validation-for="Plot.Region"></span>
+                </div>
+                <div class="field">
+                    <label>المحافظة <span class="req">*</span></label>
+                    <select asp-for="Plot.Governorate">
+                        <option value="">اختر المحافظة</option>
+                        @foreach (var region in Locations.Governorates)
+                        {
+                            <optgroup label="@region.Key">
+                                @foreach (var gov in region.Value)
+                                {
+                                    <option value="@gov">@gov</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                    <span asp-validation-for="Plot.Governorate"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section-header" style="border-top:1px solid var(--border);">
+            <div class="step-number">📍</div>
+            <div><h4>الموقع الجغرافي <span class="req">*</span></h4><p>حدد الموقع على الخريطة أو استخدم إحداثيات الحالة الحالية للجوال</p></div>
+        </div>
+        @{
+            var plotLocationModel = new LocationPickerViewModel
+            {
+                FieldPrefix = "Plot",
+                Latitude = (double?)Model.Latitude,
+                Longitude = (double?)Model.Longitude,
+                GpsAccuracyMeters = Model.GpsAccuracyM
+            };
+        }
+        <partial name="_LocationPickerPartial" model="plotLocationModel" />
+        <div class="form-section-body" style="padding-top:0;">
+            <span asp-validation-for="Latitude"></span>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">3</div>
+            <div><h4>الحالة الفنية والتوصية</h4><p>نتيجة المعاينة الميدانية للقطعة</p></div>
+        </div>
+        <div class="form-section-body">
+            <div class="form-grid cols-2">
+                <div class="field">
+                    <label>الحالة الفنية للقطعة <span class="req">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-option"><input type="radio" asp-for="Plot.PlotCondition" value="@Options.Incomplete" /> غير مكتمل</label>
+                        <label class="radio-option"><input type="radio" asp-for="Plot.PlotCondition" value="@Options.Complete" /> مكتمل</label>
+                    </div>
+                    <span asp-validation-for="Plot.PlotCondition"></span>
+                </div>
+                <div class="field">
+                    <label>التوصية <span class="req">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-option"><input type="radio" asp-for="Plot.Recommendation" value="@Options.NotSuitable" /> غير صالحة</label>
+                        <label class="radio-option"><input type="radio" asp-for="Plot.Recommendation" value="@Options.Suitable" /> صالحة للبناء</label>
+                    </div>
+                    <span asp-validation-for="Plot.Recommendation"></span>
+                </div>
+                <div class="field span-2" data-show-for="Plot.PlotCondition" data-show-when="@Options.Incomplete" style="display:none;">
+                    <label>ملاحظات عدم الاكتمال <span class="req">*</span></label>
+                    <textarea asp-for="Plot.IncompleteNotes" maxlength="500" data-val="true" data-val-required="وضّح أوجه عدم الاكتمال"></textarea>
+                    <span asp-validation-for="Plot.IncompleteNotes"></span>
+                </div>
+                <div class="field span-2" data-show-for="Plot.Recommendation" data-show-when="@Options.NotSuitable" style="display:none;">
+                    <label>ملاحظات عدم الصلاحية <span class="req">*</span></label>
+                    <textarea asp-for="Plot.NotSuitableNotes" maxlength="500" data-val="true" data-val-required="وضّح أسباب عدم الصلاحية"></textarea>
+                    <span asp-validation-for="Plot.NotSuitableNotes"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div data-wizard-step="2">
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">📷</div>
+            <div><h4>المرفقات</h4><p>رفع صور القطعة قبل المتابعة للمراجعة</p></div>
+        </div>
+        <div class="form-section-body">
+            @{
+                var plotFileModel = new FileUploadViewModel { FieldName = "Photos", Title = "رفع صور القطعة" };
+            }
+            <partial name="_FileUploadPartial" model="plotFileModel" />
+        </div>
+    </div>
+</div>
+
+@{
+    var plotSummaryRows = new Dictionary<string, string> {
+        { "المخطط", Model.Plot?.PlanName ?? "" },
+        { "القطعة", Model.Plot?.PlotNumber ?? "" },
+        { "المستفيد", Model.Plot?.BeneficiaryName ?? "" }
+    };
+}
+<partial name="_ActionSummaryPartial" model="new ActionSummaryViewModel { Rows = plotSummaryRows }" />

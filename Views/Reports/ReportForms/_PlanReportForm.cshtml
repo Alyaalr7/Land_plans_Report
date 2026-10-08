@@ -1,0 +1,170 @@
+﻿@using Land_plans_Report.Models
+@using Land_plans_Report.Helpers
+@model ReportFormViewModel
+
+<div data-wizard-step="1">
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">1</div>
+            <div>
+                <h4>بيانات المخطط والموقع</h4>
+                <p>معلومات المخطط الأساسية وموقعه الجغرافي</p>
+            </div>
+        </div>
+        <div class="form-section-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label>كود المخطط <span class="req">*</span></label>
+                    <input asp-for="Plan.PlanCode" maxlength="50" />
+                    <span asp-validation-for="Plan.PlanCode"></span>
+                </div>
+                <div class="field">
+                    <label>اسم المخطط <span class="req">*</span></label>
+                    <input asp-for="Plan.PlanName" maxlength="200" />
+                    <span asp-validation-for="Plan.PlanName"></span>
+                </div>
+                <div class="field">
+                    <label>المساحة <span class="req">*</span></label>
+                    <div class="input-suffix">
+                        <input asp-for="Plan.Area" type="number" step="0.01" />
+                        <span>م²</span>
+                    </div>
+                    <span asp-validation-for="Plan.Area"></span>
+                </div>
+                <div class="field">
+                    <label>المنطقة <span class="req">*</span></label>
+                    <select asp-for="Plan.Region">
+                        <option value="">اختر المنطقة</option>
+                        @foreach (var region in Locations.Regions)
+                        {
+                            <option value="@region">@region</option>
+                        }
+                    </select>
+                    <span asp-validation-for="Plan.Region"></span>
+                </div>
+                <div class="field">
+                    <label>المحافظة <span class="req">*</span></label>
+                    <select asp-for="Plan.Governorate">
+                        <option value="">اختر المحافظة</option>
+                        @foreach (var region in Locations.Governorates)
+                        {
+                            <optgroup label="@region.Key">
+                                @foreach (var gov in region.Value)
+                                {
+                                    <option value="@gov">@gov</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                    <span asp-validation-for="Plan.Governorate"></span>
+                </div>
+
+                <div class="field">
+                    <label>المركز أو القرية <span class="req">*</span></label>
+                    <input asp-for="Plan.CenterOrVillage" maxlength="150" placeholder="أدخل اسم المركز أو القرية" />
+                    <span asp-validation-for="Plan.CenterOrVillage"></span>
+                </div>
+                <div class="field">
+                    <label>عدد القطع <span class="req">*</span></label>
+                    <input asp-for="Plan.PlotCount" type="number" step="1" placeholder="أدخل رقماً صحيحاً موجباً" />
+                    <span asp-validation-for="Plan.PlotCount"></span>
+                </div>
+                <div class="field">
+                    <label>البعد عن المركز أو القرية <span class="req">*</span></label>
+                    <div class="input-suffix">
+                        <input asp-for="Plan.DistanceFromCenter" type="number" step="0.01" />
+                        <span>كم</span>
+                    </div>
+                    <span asp-validation-for="Plan.DistanceFromCenter"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section-header" style="border-top:1px solid var(--border);">
+            <div class="step-number">📍</div>
+            <div><h4>الموقع الجغرافي <span class="req">*</span></h4><p>حدد الموقع على الخريطة أو استخدم إحداثيات الحالة الحالية للجوال</p></div>
+        </div>
+        @{
+            var planLocationModel = new LocationPickerViewModel
+            {
+                FieldPrefix = "Plan",
+                Latitude = (double?)Model.Latitude,
+                Longitude = (double?)Model.Longitude,
+                GpsAccuracyMeters = Model.GpsAccuracyM
+            };
+        }
+        <partial name="_LocationPickerPartial" model="planLocationModel" />
+        <div class="form-section-body" style="padding-top:0;">
+            <span asp-validation-for="Latitude"></span>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">2</div>
+            <div>
+                <h4>الحالة الفنية والخدمات</h4>
+                <p>نتائج المعاينة الميدانية للخدمات والعمران</p>
+            </div>
+        </div>
+        <div class="form-section-body">
+            <div class="form-grid cols-2">
+                <div class="field">
+                    <label>حالة الإسفلت <span class="req">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-option"><input type="radio" asp-for="Plan.AsphaltStatus" value="@Options.NotExists" /> لا يوجد</label>
+                        <label class="radio-option"><input type="radio" asp-for="Plan.AsphaltStatus" value="@Options.Partial" /> جزئي</label>
+                        <label class="radio-option"><input type="radio" asp-for="Plan.AsphaltStatus" value="@Options.Exists" /> يوجد</label>
+                    </div>
+                    <span asp-validation-for="Plan.AsphaltStatus"></span>
+                </div>
+                <div class="field">
+                    <label>شبكة المياه والصرف <span class="req">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-option"><input type="radio" asp-for="Plan.WaterDrainage" value="@Options.No" /> لا</label>
+                        <label class="radio-option"><input type="radio" asp-for="Plan.WaterDrainage" value="@Options.Yes" /> نعم</label>
+                    </div>
+                    <span asp-validation-for="Plan.WaterDrainage"></span>
+                </div>
+                <div class="field">
+                    <label>حالة الكهرباء <span class="req">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-option"><input type="radio" asp-for="Plan.ElectricityStatus" value="@Options.NotExists" /> لا يوجد</label>
+                        <label class="radio-option"><input type="radio" asp-for="Plan.ElectricityStatus" value="@Options.Exists" /> يوجد</label>
+                    </div>
+                    <span asp-validation-for="Plan.ElectricityStatus"></span>
+                </div>
+                <div class="field">
+                    <label>نسبة العمران (%) <span class="req">*</span></label>
+                    <input asp-for="Plan.UrbanCondition" type="number" step="0.01" min="0" max="100" placeholder="من 0 إلى 100" />
+                    <span asp-validation-for="Plan.UrbanCondition"></span>
+                </div>
+                <div class="field span-2">
+                    <label>الملاحظات</label>
+                    <textarea asp-for="Notes" placeholder="أضف الملاحظات الميدانية"></textarea>
+                    <span asp-validation-for="Notes"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div data-wizard-step="2">
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">📷</div>
+            <div><h4>المرفقات</h4><p>رفع صور المخطط قبل المتابعة للمراجعة</p></div>
+        </div>
+        <div class="form-section-body">
+            @{
+                var planFileModel = new FileUploadViewModel { FieldName = "Photos", Title = "رفع صور المخطط" };
+            }
+            <partial name="_FileUploadPartial" model="planFileModel" />
+        </div>
+    </div>
+</div>
+
+@{
+    var planSummaryNote = "راجع بيانات المخطط والصور قبل حفظ التقرير أو إرساله. سيتم التحقق من الحقول الإلزامية عند الإرسال وتسجيل العملية في سجل التدقيق.";
+}
+<partial name="_ActionSummaryPartial" model="new ActionSummaryViewModel { Note = planSummaryNote }" />

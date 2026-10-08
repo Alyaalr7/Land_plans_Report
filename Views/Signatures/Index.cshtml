@@ -1,0 +1,41 @@
+﻿@using Land_plans_Report.Data
+@model List<Role>
+@{
+    ViewData["Title"] = "التوقيعات والأختام";
+    ViewBag.ActivePage = "signatures";
+}
+
+<div class="page-header">
+    <div>
+        <div class="accent-bar"></div>
+        <h1>التوقيعات والأختام</h1>
+        <p>نص الختم الرسمي لكل دور اعتماد — مرتبط بالدور نفسه، وليس بفرع معين</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th>م</th><th>الدور</th><th>نص الختم الرسمي</th><th>الإجراء</th></tr></thead>
+            <tbody>
+                @{
+                    int i = 1;
+                }
+                @foreach (var r in Model)
+                {
+                    <tr>
+                        <td>@i</td>
+                        <td>@r.RoleName</td>
+                        <td>@(r.StampText ?? "— لم يُحدد بعد —")</td>
+                        <td><a class="link-action" asp-action="Edit" asp-route-id="@r.RoleId">تعديل</a></td>
+                    </tr>
+                    i++;
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="audit-strip" style="margin-top:16px;">
+    ملاحظة: هذا الختم نص يُطبع تلقائياً على التقرير النهائي عند اعتماد أي مستخدم يحمل هذا الدور، بغض النظر عن الفرع الذي ينتمي إليه التقرير.
+</div>

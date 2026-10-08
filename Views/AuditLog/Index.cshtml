@@ -1,0 +1,56 @@
+﻿@using Land_plans_Report.Data
+@model List<AuditLogEntry>
+@{
+    ViewData["Title"] = "سجل التدقيق";
+    ViewBag.ActivePage = "audit";
+    string role = ViewBag.UserRole ?? "Technical";
+    var userNames = ViewBag.UserNames as Dictionary<int, string>;
+    var reportNumbers = ViewBag.ReportNumbers as Dictionary<int, string>;
+
+    var subtitle = role switch
+    {
+        "Admin" => "كل العمليات الإدارية والنظامية — باستثناء تفاصيل المسودات الخاصة بغيرك",
+        "Technical" => "العمليات المرتبطة بتقاريرك أنت فقط: الإرسال، الرد عليها، والاعتماد النهائي",
+        _ => "قراراتك أنت فقط: الاعتمادات والإعادات التي اتخذتها"
+    };
+}
+
+<div class="page-header">
+    <div>
+        <div class="accent-bar"></div>
+        <h1>سجل التدقيق</h1>
+        <p>@subtitle</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th>م</th><th>رقم التقرير</th><th>العملية</th>@(role == "Admin" ? "<th>المستخدم</th>" : "")<th>التفاصيل</th><th>التاريخ والوقت</th></tr></thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr><td colspan="6" style="text-align:center; color:var(--text-muted);">لا توجد عمليات مسجلة تخصك حالياً</td></tr>
+                }
+                @{
+                    int i = 1;
+                }
+                @foreach (var e in Model)
+                {
+                    <tr>
+                        <td>@i</td>
+                        <td>@(e.ReportId.HasValue && reportNumbers != null && reportNumbers.ContainsKey(e.ReportId.Value) ? reportNumbers[e.ReportId.Value] : "—")</td>
+                        <td>@(e.ActionType switch { "Submit" => "إرسال", "Approve" => "اعتماد", "Return" => "إعادة للتعديل", "Create" => "إنشاء", "UserAdded" => "إضافة مستخدم", "StampUpdated" => "تحديث ختم", _ => e.ActionType })</td>
+                        @if (role == "Admin")
+                        {
+                            <td>@(userNames != null && userNames.ContainsKey(e.UserId) ? userNames[e.UserId] : "—")</td>
+                        }
+                        <td>@e.ActionDetails</td>
+                        <td>@e.ActionDate.ToString("dd MMM yyyy · hh:mm tt")</td>
+                    </tr>
+                    i++;
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

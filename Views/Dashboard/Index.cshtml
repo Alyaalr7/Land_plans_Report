@@ -1,0 +1,21 @@
+﻿@using Land_plans_Report.Data
+@model List<Report>
+@{
+    ViewData["Title"] = "لوحة التحكم";
+    ViewBag.ActivePage = "dashboard";
+    string role = ViewBag.UserRole ?? "Technical";
+}
+
+@* كل دور له لوحة تحكم مختلفة فعلياً بالتصميم والمحتوى، مو بس أرقام مختلفة بنفس القالب *@
+@if (role == "Technical")
+{
+    <partial name="_TechnicalDashboard" model="Model" />
+}
+else if (role == "Approver")
+{
+    <partial name="_ApproverDashboard" model="Model" />
+}
+else
+{
+    <partial name="_AdminDashboard" model="Model" />
+}

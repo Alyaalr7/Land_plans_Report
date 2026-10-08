@@ -1,0 +1,15 @@
+﻿@* 
+    الاستخدام: <partial name="_StatusBadgePartial" model="\"pending\"" />
+    القيم الممكنة: approved | draft | pending | returned
+*@
+@model string
+@{
+    var labels = new Dictionary<string, string> {
+        { "approved", "معتمد" },
+        { "draft", "مسودة" },
+        { "pending", "بانتظار الاعتماد" },
+        { "returned", "معاد للتعديل" }
+    };
+    var text = labels.ContainsKey(Model) ? labels[Model] : Model;
+}
+<span class="badge @Model">@text</span>

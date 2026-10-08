@@ -1,0 +1,345 @@
+﻿@using Land_plans_Report.Data
+@model Report
+@{
+    ViewData["Title"] = "عرض التقرير";
+    ViewBag.ActivePage = "reports";
+    var titles = new Dictionary<string, string> {
+        { "plan", "تقرير الحالة الفنية للمخطط" },
+        { "plot", "تقرير الحالة الفنية لقطعة الأرض" },
+        { "raw", "تقرير الحالة الفنية لأرض خام" },
+        { "unplanned", "تقرير الحالة الفنية لأرض لا يوجد فيها مخطط" },
+    };
+
+    // هل يتم عرض زر الاعتماد ام لا
+    var roleCode = Context.Session.GetString("RoleCode");
+    bool canDecide = Model.Status == "pending" &&
+        ((roleCode == "PlotApprover" && Model.ReportType != "plan") ||
+         (roleCode == "PlanApprover" && Model.ReportType == "plan"));
+    bool isOwner = Context.Session.GetInt32("UserId") == Model.CreatedByUserId;
+
+    // عرض فقط: عنصر (عنوان + قيمة)، والقيمة الفاضية تظهر "—"
+    void Field(string label, object? value, string? unit = null)
+    {
+        var text = value?.ToString();
+        <div class="kv">
+            <dt>@label</dt>
+            <dd>@(string.IsNullOrWhiteSpace(text) ? "—" : (unit == null ? text : text + " " + unit))</dd>
+        </div>
+    }
+}
+
+@* ⚠️ شاشة قراءة فقط بالكامل — لا يوجد فيها ولا حقل قابل للتعديل، بعكس شاشة الاعتماد القديمة *@
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+        <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V3h10v6" /><rect x="3" y="9" width="18" height="8" rx="2" /><path d="M7 14h10v7H7z" /></symbol>
+        <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5" /><circle cx="12" cy="16.5" r=".6" fill="currentColor" /></symbol>
+        <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="m21 16-5-5-9 9" /></symbol>
+    </defs>
+</svg>
+
+<div class="dash">
+
+    <!-- مسار التصفح -->
+    <nav class="breadcrumb" aria-label="مسار التصفح">
+        <a asp-controller="Reports" asp-action="Index">التقارير والمعاملات</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page"><bdi>@Model.ReportNumber</bdi></span>
+    </nav>
+
+    <!-- العنوان والإجراءات -->
+    <div class="page-head">
+        <div>
+            <h1 class="dash-title">@titles[Model.ReportType]</h1>
+            <div class="page-meta">
+                <bdi>@Model.ReportNumber</bdi>
+                <partial name="_StatusBadgePartial" model="@Model.Status" />
+            </div>
+        </div>
+        <div class="page-actions">
+            <a asp-action="Print" asp-route-id="@Model.ReportId" class="dga-btn dga-btn--secondary" target="_blank">
+                <svg class="ico"><use href="#i-print" /></svg> طباعة / PDF
+            </a>
+            @if (isOwner && Model.Status == "pending")
+            {
+                <form method="post" asp-action="Withdraw" asp-route-id="@Model.ReportId">
+                    <button type="button" class="dga-btn dga-btn--danger" data-open-dialog>
+                        <svg class="ico"><use href="#i-return" /></svg> سحب التقرير للتعديل
+                    </button>
+                    <dialog class="dga-dialog" aria-labelledby="withdraw-title">
+                        <div class="dga-dialog-icon dga-dialog-icon--warning" aria-hidden="true">
+                            <svg class="ico"><use href="#i-return" /></svg>
+                        </div>
+                        <h2 id="withdraw-title">سحب التقرير للتعديل؟</h2>
+                        <p>سيعود مسودة، ولن يظهر للمعتمِد حتى تعيدي إرساله.</p>
+                        <div class="dga-dialog-actions">
+                            <button type="button" class="dga-btn dga-btn--secondary" data-dialog-close>رجوع</button>
+                            <button type="submit" class="dga-btn dga-btn--danger">سحب التقرير</button>
+                        </div>
+                    </dialog>
+                </form>
+            }
+            @if (isOwner && (Model.Status == "draft" || Model.Status == "returned"))
+            {
+                <a asp-action="Edit" asp-route-id="@Model.ReportId" class="dga-btn dga-btn--primary">
+                    <svg class="ico"><use href="#i-pen" /></svg> تعديل التقرير
+                </a>
+            }
+            @if (canDecide)
+            {
+                <a asp-controller="Approval" asp-action="Review" asp-route-id="@Model.ReportId" class="dga-btn dga-btn--primary">اتخاذ قرار الاعتماد</a>
+            }
+        </div>
+    </div>
+
+    <!-- سبب الإعادة -->
+    @if (Model.Status == "returned")
+    {
+        var lastReturn = Model.Approvals.Where(a => a.Decision == "return").OrderByDescending(a => a.DecisionDate).FirstOrDefault();
+        <div class="dga-alert dga-alert--danger" role="alert">
+            <svg class="ico"><use href="#i-alert" /></svg>
+            <div>
+                <strong>أُعيد هذا التقرير للتعديل</strong>
+                <p>@(lastReturn?.ApproverNotes ?? "لم يُذكر سبب")</p>
+            </div>
+        </div>
+    }
+
+    <!-- بيانات عامة -->
+    <section class="detail-card">
+        <h2>بيانات عامة</h2>
+        <dl class="kv-grid">
+            @{
+                Field("تاريخ الإنشاء", Model.CreatedAt.ToString("yyyy/MM/dd"));
+            }
+            @{
+                Field("تاريخ الإرسال", Model.SubmittedAt?.ToString("yyyy/MM/dd") ?? "لم يُرسل بعد");
+            }
+        </dl>
+    </section>
+
+    @if (Model.PlanDetails != null)
+    {
+        <section class="detail-card">
+            <h2>بيانات المخطط</h2>
+            <dl class="kv-grid">
+                @{
+                    Field("كود المخطط", Model.PlanDetails.PlanCode);
+                }
+                @{
+                    Field("اسم المخطط", Model.PlanDetails.PlanName);
+                }
+                @{
+                    Field("المساحة", Model.PlanDetails.Area, "م²");
+                }
+                @{
+                    Field("المنطقة", Model.PlanDetails.Region);
+                }
+                @{
+                    Field("المحافظة", Model.PlanDetails.Governorate);
+                }
+                @{
+                    Field("المركز أو القرية", Model.PlanDetails.CenterOrVillage);
+                }
+                @{
+                    Field("عدد القطع", Model.PlanDetails.PlotCount);
+                }
+                @{
+                    Field("البعد عن المركز", Model.PlanDetails.DistanceFromCenter, "كم");
+                }
+                @{
+                    Field("حالة الإسفلت", Model.PlanDetails.AsphaltStatus);
+                }
+                @{
+                    Field("شبكة المياه", Model.PlanDetails.WaterDrainage);
+                }
+                @{
+                    Field("حالة الكهرباء", Model.PlanDetails.ElectricityStatus);
+                }
+                @{
+                    Field("حالة العمران", Model.PlanDetails.UrbanCondition);
+                }
+            </dl>
+        </section>
+    }
+    else if (Model.PlotDetails != null)
+    {
+        <section class="detail-card">
+            <h2>بيانات المستفيد والقطعة</h2>
+            <dl class="kv-grid">
+                @{
+                    Field("اسم المستفيد", Model.PlotDetails.BeneficiaryName);
+                }
+                @{
+                    Field("رقم الهوية", Model.PlotDetails.BeneficiaryNationalId);
+                }
+                @{
+                    Field("رقم الجوال", Model.PlotDetails.BeneficiaryPhone);
+                }
+                @{
+                    Field("كود المخطط", Model.PlotDetails.PlanCode);
+                }
+                @{
+                    Field("اسم المخطط", Model.PlotDetails.PlanName);
+                }
+                @{
+                    Field("المحافظة", Model.PlotDetails.Governorate);
+                }
+                @{
+                    Field("المنطقة", Model.PlotDetails.Region);
+                }
+                @{
+                    Field("رقم القطعة", Model.PlotDetails.PlotNumber);
+                }
+                @{
+                    Field("الحالة الفنية", Model.PlotDetails.PlotCondition);
+                }
+                @{
+                    Field("التوصية", Model.PlotDetails.Recommendation);
+                }
+            </dl>
+            @if (!string.IsNullOrEmpty(Model.PlotDetails.IncompleteNotes))
+            {
+                <div class="detail-note"><dt>ملاحظات عدم الاكتمال</dt><dd>@Model.PlotDetails.IncompleteNotes</dd></div>
+            }
+            @if (!string.IsNullOrEmpty(Model.PlotDetails.NotSuitableNotes))
+            {
+                <div class="detail-note"><dt>ملاحظات عدم الصلاحية</dt><dd>@Model.PlotDetails.NotSuitableNotes</dd></div>
+            }
+        </section>
+    }
+    else if (Model.RawLandDetails != null)
+    {
+        <section class="detail-card">
+            <h2>بيانات الأرض الخام</h2>
+            <dl class="kv-grid">
+                @{
+                    Field("هل يوجد مخطط معتمد", Model.RawLandDetails.HasApprovedPlan == true ? "نعم" : "لا");
+                }
+                @{
+                    Field("كود المخطط", Model.RawLandDetails.PlanCode);
+                }
+                @{
+                    Field("اسم المخطط", Model.RawLandDetails.PlanName);
+                }
+                @{
+                    Field("المساحة", Model.RawLandDetails.Area, "م²");
+                }
+                @{
+                    Field("المنطقة", Model.RawLandDetails.Region);
+                }
+                @{
+                    Field("المحافظة", Model.RawLandDetails.Governorate);
+                }
+                @{
+                    Field("المركز أو القرية", Model.RawLandDetails.CenterOrVillage);
+                }
+                @{
+                    Field("عدد القطع", Model.RawLandDetails.PlotCount);
+                }
+                @{
+                    Field("البعد عن المركز", Model.RawLandDetails.DistanceFromCenter, "كم");
+                }
+                @{
+                    Field("حالة الإسفلت", Model.RawLandDetails.AsphaltStatus);
+                }
+                @{
+                    Field("حالة الكهرباء", Model.RawLandDetails.ElectricityStatus);
+                }
+                @{
+                    Field("حالة العمران", Model.RawLandDetails.UrbanCondition);
+                }
+            </dl>
+        </section>
+    }
+    else if (Model.UnplannedLandDetails != null)
+    {
+        <section class="detail-card">
+            <h2>بيانات الأرض بلا مخطط</h2>
+            <dl class="kv-grid">
+                @{
+                    Field("اسم المخطط الوصفي", Model.UnplannedLandDetails.PlanName);
+                }
+                @{
+                    Field("كود المخطط الوصفي", Model.UnplannedLandDetails.PlanCode);
+                }
+                @{
+                    Field("المساحة", Model.UnplannedLandDetails.Area, "م²");
+                }
+                @{
+                    Field("المحافظة", Model.UnplannedLandDetails.Governorate);
+                }
+                @{
+                    Field("المنطقة", Model.UnplannedLandDetails.Region);
+                }
+                @{
+                    Field("المركز أو القرية", Model.UnplannedLandDetails.CenterOrVillage);
+                }
+                @{
+                    Field("عدد القطع", Model.UnplannedLandDetails.PlotCount);
+                }
+                @{
+                    Field("داخل حد التنمية", Model.UnplannedLandDetails.InsideDevelopmentBoundary == true ? "نعم" : "لا");
+                }
+                @{
+                    Field("البعد عن المركز", Model.UnplannedLandDetails.DistanceFromCenter, "كم");
+                }
+                @{
+                    Field("حالة الإسفلت", Model.UnplannedLandDetails.AsphaltStatus);
+                }
+                @{
+                    Field("حالة الكهرباء", Model.UnplannedLandDetails.ElectricityStatus);
+                }
+                @{
+                    Field("حالة العمران", Model.UnplannedLandDetails.UrbanCondition);
+                }
+            </dl>
+        </section>
+    }
+
+    @if (!string.IsNullOrEmpty(Model.Notes))
+    {
+        <section class="detail-card">
+            <h2>الملاحظات العامة</h2>
+            <p class="detail-text">@Model.Notes</p>
+        </section>
+    }
+
+    @if (Model.Photos.Any())
+    {
+        <section class="detail-card">
+            <h2>الصور المرفقة <span class="detail-count">(@Model.Photos.Count)</span></h2>
+            <div class="photo-grid">
+                @foreach (var photo in Model.Photos)
+                {
+                    <a href="@photo.FilePath" target="_blank" class="photo-item">
+                        <img src="@photo.FilePath" alt="صورة مرفقة بالتقرير" loading="lazy" />
+                    </a>
+                }
+            </div>
+        </section>
+    }
+
+    @if (Model.Approvals.Any())
+    {
+        <section class="detail-card detail-card--flush">
+            <h2>سجل القرارات</h2>
+            <div class="dga-table-wrap">
+                <table class="dga-table">
+                    <thead><tr><th>القرار</th><th>ملاحظات المعتمد</th><th>التاريخ</th></tr></thead>
+                    <tbody>
+                        @foreach (var a in Model.Approvals.OrderByDescending(a => a.DecisionDate))
+                        {
+                            <tr>
+                                <td><span class="badge @(a.Decision == "approve" ? "approved" : "returned")">@(a.Decision == "approve" ? "موافقة" : "إعادة للتعديل")</span></td>
+                                <td>@a.ApproverNotes</td>
+                                <td><bdi>@a.DecisionDate.ToString("yyyy/MM/dd · HH:mm")</bdi></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+
+</div>

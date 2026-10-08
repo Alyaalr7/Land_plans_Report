@@ -1,0 +1,90 @@
+﻿@using Land_plans_Report.Models
+@using Land_plans_Report.Data
+@model ReportFormViewModel
+@{
+    ViewData["Title"] = "تعديل التقرير";
+    ViewBag.ActivePage = "reports";
+    var titles = new Dictionary<string, string> {
+        { "plan", "تعديل تقرير المخطط" }, { "plot", "تعديل تقرير قطعة الأرض" },
+        { "raw", "تعديل تقرير أرض خام" }, { "unplanned", "تعديل تقرير أرض بلا مخطط" },
+    };
+
+    // الخريطة (للأنواع اللي لسا على الطريقة القديمة — المخطط عنده خريطته داخل الـ partial)
+    var locModel = new LocationPickerViewModel
+            {
+                FieldPrefix = Model.ReportType,
+                Latitude = (double?)Model.Latitude,
+                Longitude = (double?)Model.Longitude,
+                GpsAccuracyMeters = Model.GpsAccuracyM
+            };
+
+    ViewData["CancelUrl"] = Url.Action("Details", "Reports", new { id = Model.ReportId });
+}
+
+<div class="dash report-wizard">
+
+    <nav class="breadcrumb" aria-label="مسار التصفح">
+        <a asp-controller="Reports" asp-action="Index">التقارير والمعاملات</a>
+        <span aria-hidden="true">/</span>
+        <a asp-controller="Reports" asp-action="Details" asp-route-id="@Model.ReportId"><bdi>@Model.ReportNumber</bdi></a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">تعديل</span>
+    </nav>
+
+    <div>
+        <h1 class="dash-title">@titles[Model.ReportType]</h1>
+        <div class="page-meta"><bdi>@Model.ReportNumber</bdi></div>
+    </div>
+
+    @if (Model.Status == "returned")
+    {
+        <div class="dga-alert dga-alert--danger" role="alert">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5" /><circle cx="12" cy="16.5" r=".6" fill="currentColor" /></svg>
+            <div>
+                <strong>سبب الإعادة</strong>
+                <p>@(Model.LastReturnNote ?? "لم يُذكر سبب")</p>
+            </div>
+        </div>
+    }
+
+    @if (Model.ExistingPhotoCount > 0)
+    {
+        <div class="dga-alert dga-alert--info">
+            <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="m21 16-5-5-9 9" /></svg>
+            <div>
+                <p>الصور الحالية (@Model.ExistingPhotoCount) تبقى محفوظة، وأي صورة جديدة تنضاف لها.</p>
+            </div>
+        </div>
+    }
+
+    <partial name="ReportForms/_WizardStepper" />
+
+    <form method="post" asp-action="Edit" asp-route-id="@Model.ReportId" enctype="multipart/form-data" novalidate data-wizard-form data-existing-photos="@Model.ExistingPhotoCount">
+        <div asp-validation-summary="All" class="form-summary"></div>
+
+        @if (Model.ReportType == "plan")
+        {
+            @* نفس فورم الإنشاء بالضبط — فيه الحقول والخريطة والصور والملاحظات *@
+            <partial name="ReportForms/_PlanReportForm" />
+        }
+        else if (Model.ReportType == "plot")
+        {
+            <partial name="ReportForms/_PlotReportForm" />
+        }
+        else if (Model.ReportType == "raw")
+        {
+            <partial name="ReportForms/_RawLandReportForm" />
+        }
+        else
+        {
+            <partial name="ReportForms/_UnplannedLandReportForm" />
+        }
+
+        <partial name="ReportForms/_WizardNav" />
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/report-wizard.js" asp-append-version="true"></script>
+}

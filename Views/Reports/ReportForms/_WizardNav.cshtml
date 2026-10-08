@@ -1,0 +1,48 @@
+﻿@* أزرار التنقل والإرسال (نفس أزرار الإرسال القديمة: name="submitAction" بقيمتي draft / submit) *@
+@{
+    var cancelUrl = ViewData["CancelUrl"] as string;
+}
+<div class="wizard-nav">
+    <div class="wizard-nav-start">
+        <button type="button" class="dga-btn dga-btn--ghost" data-wizard-prev hidden>
+            <svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></svg> السابق
+        </button>
+        @if (!string.IsNullOrEmpty(cancelUrl))
+        {
+            <a class="dga-btn dga-btn--ghost" href="@cancelUrl" data-wizard-cancel>إلغاء</a>
+        }
+    </div>
+    <div class="wizard-nav-end">
+        <button type="submit" name="submitAction" value="draft" class="dga-btn dga-btn--secondary" formnovalidate>حفظ كمسودة</button>
+        <button type="button" class="dga-btn dga-btn--primary" data-wizard-next>
+            التالي <svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></svg>
+        </button>
+        <button type="button" class="dga-btn dga-btn--primary" data-wizard-submit>حفظ وإرسال</button>
+    </div>
+</div>
+
+@* تأكيد الإرسال (إجراء نهائي) — الزر الحقيقي للإرسال داخل النافذة *@
+<dialog class="dga-dialog" data-submit-dialog aria-labelledby="submit-dialog-title">
+    <div class="dga-dialog-icon" aria-hidden="true">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4z" /></svg>
+    </div>
+    <h2 id="submit-dialog-title">إرسال التقرير للاعتماد؟</h2>
+    <p>بعد الإرسال يتحول التقرير للمعتمد المخول، ولا يمكن تعديله إلا إذا أعاده المعتمِد للتعديل.</p>
+    <div class="dga-dialog-actions">
+        <button type="button" class="dga-btn dga-btn--secondary" data-dialog-close>رجوع</button>
+        <button type="submit" name="submitAction" value="submit" class="dga-btn dga-btn--primary">تأكيد الإرسال</button>
+    </div>
+</dialog>
+
+@* تنبيه المغادرة بدون حفظ (يظهر فقط إذا عدّل المستخدم شيئاً) *@
+<dialog class="dga-dialog" data-leave-dialog aria-labelledby="leave-dialog-title">
+    <div class="dga-dialog-icon dga-dialog-icon--warning" aria-hidden="true">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M12 3 2 20h20z" /><path d="M12 10v4" /><circle cx="12" cy="17" r=".6" fill="currentColor" /></svg>
+    </div>
+    <h2 id="leave-dialog-title">مغادرة بدون حفظ؟</h2>
+    <p>لديك تغييرات لم تحفظ، وستفقد إذا غادرت الصفحة. يمكنك حفظها كمسودة قبل المغادرة.</p>
+    <div class="dga-dialog-actions">
+        <button type="button" class="dga-btn dga-btn--secondary" data-leave-go>مغادرة بدون حفظ</button>
+        <button type="button" class="dga-btn dga-btn--primary" data-leave-stay>البقاء في الصفحة</button>
+    </div>
+</dialog>

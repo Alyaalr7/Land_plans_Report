@@ -1,0 +1,77 @@
+﻿@using Land_plans_Report.Data
+@model List<Report>
+@{
+    var recentAudit = ViewBag.RecentAudit as List<AuditLogEntry>;
+    var auditNames = ViewBag.AuditUserNames as Dictionary<int, string>;
+}
+
+<div class="page-header">
+    <div>
+        <div class="accent-bar"></div>
+        <h1>لوحة تحكم مدير النظام</h1>
+        <p>نظرة شاملة على كل النظام: التقارير والمستخدمون</p>
+    </div>
+</div>
+
+<div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-icon green">@ViewBag.CountApproved</div><div><div class="kpi-value">@ViewBag.CountApproved</div><div class="kpi-label">تقارير معتمدة (الكل)</div></div></div>
+    <div class="kpi-card"><div class="kpi-icon gold">@ViewBag.CountPending</div><div><div class="kpi-value">@ViewBag.CountPending</div><div class="kpi-label">بانتظار اعتماد</div></div></div>
+    <div class="kpi-card"><div class="kpi-icon gray">@ViewBag.TotalUsers</div><div><div class="kpi-value">@ViewBag.TotalUsers</div><div class="kpi-label">مستخدمون فعّالون</div></div></div>
+</div>
+
+<div class="card mb-16">
+    <div class="card-header"><h3>إدارة النظام</h3></div>
+    <div class="card-pad">
+        <div class="quick-actions">
+            <a class="quick-action-btn" asp-controller="Users" asp-action="Index"><strong>إدارة المستخدمين</strong><span>الأدوار والصلاحيات</span></a>
+            <a class="quick-action-btn" asp-controller="Signatures" asp-action="Index"><strong>التوقيعات والأختام</strong><span>نص الختم لكل دور</span></a>
+            <a class="quick-action-btn" asp-controller="AuditLog" asp-action="Index"><strong>سجل التدقيق الكامل</strong><span>كل العمليات بالنظام</span></a>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-16">
+    <div class="card-header"><h3>آخر الأنشطة بالنظام كامل</h3></div>
+    <div class="card-pad">
+        <div class="activity-list">
+            @if (recentAudit == null || !recentAudit.Any())
+            {
+                <p class="text-muted mt-0">لا توجد أنشطة مسجلة بعد</p>
+            }
+            @foreach (var a in recentAudit ?? new())
+            {
+                <div class="activity-item">
+                    <span class="activity-dot"></span>
+                    <div>
+                        <strong>@a.ActionType — @a.ActionDetails</strong>
+                        <span>@(auditNames != null && auditNames.ContainsKey(a.UserId) ? auditNames[a.UserId] : "—") · @a.ActionDate.ToString("dd MMM yyyy, hh:mm tt")</span>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h3>أحدث التقارير بكل النظام</h3></div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th>رقم التقرير</th><th>النوع</th><th>الحالة</th><th>الإجراء</th></tr></thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">لا توجد تقارير بعد</td></tr>
+                }
+                @foreach (var r in Model)
+                {
+                    <tr>
+                        <td>@r.ReportNumber</td>
+                        <td>@r.ReportType</td>
+                        <td><partial name="_StatusBadgePartial" model="@r.Status" /></td>
+                        <td><a class="link-action" asp-controller="Reports" asp-action="Details" asp-route-id="@r.ReportId">عرض</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

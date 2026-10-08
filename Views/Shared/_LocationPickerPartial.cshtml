@@ -1,0 +1,165 @@
+﻿@*
+    الاستخدام: <partial name="_LocationPickerPartial" model="someLocationModel" />
+    خريطة (Leaflet + OpenStreetMap):
+    - بحث عن الأماكن (Nominatim)
+    - زر "استخدام موقعي الحالي" (Geolocation)
+    - الضغط على الخريطة أو سحب الدبوس يحدّث الإحداثيات
+    - الحقول المخفية أسماؤها Latitude / Longitude / GpsAccuracyM عشان تنربط بالـ ViewModel مباشرة
+    - الحقول تبقى فاضية لين الفني يحدد موقع فعلاً (ما نحفظ موقع افتراضي)
+    - تنبيه (غير مانع) إذا دقة GPS أسوأ من 50 متر — حسب الـ BRD
+*@
+@model Land_plans_Report.Models.LocationPickerViewModel
+@{
+    var mapId = $"map_{Model.FieldPrefix}";
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var centerLat = Model.Latitude ?? 24.4686;   // مركز العرض فقط (المدينة المنورة)
+    var centerLng = Model.Longitude ?? 39.6142;
+}
+
+<div class="form-section-body" style="padding-top:0;">
+    <div class="map-picker">
+        <div class="map-search-row" style="position:relative;">
+            <input type="text" id="@(mapId)_search" placeholder="ابحث باسم الموقع أو العنوان (مثال: المدينة المنورة، قباء)" autocomplete="off" />
+            <button type="button" id="@(mapId)_geo" class="dga-btn dga-btn--secondary dga-btn--sm"><svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /><circle cx="12" cy="12" r="7" /></svg> استخدام موقعي الحالي</button>
+            <div id="@(mapId)_suggestions" class="map-suggestions" style="display:none;"></div>
+        </div>
+        <div id="@(mapId)" style="height:280px; width:100%;"></div>
+        <div class="map-footer">
+            <span>دقة GPS: <strong id="@(mapId)_accLabel">@(Model.GpsAccuracyMeters?.ToString() ?? "—") م</strong></span>
+            <span>خط الطول: <strong id="@(mapId)_lngLabel">@(Model.Longitude?.ToString("F6", inv) ?? "لم يُحدد")</strong></span>
+            <span>خط العرض: <strong id="@(mapId)_latLabel">@(Model.Latitude?.ToString("F6", inv) ?? "لم يُحدد")</strong></span>
+        </div>
+        <div id="@(mapId)_accWarn" class="map-warn" style="display:none;">
+            دقة الموقع ضعيفة (أكثر من 50 متر). تأكدي من الموقع على الخريطة أو حاولي مرة ثانية في مكان مفتوح.
+        </div>
+    </div>
+    <input type="hidden" name="Latitude" id="@(mapId)_lat" value="@Model.Latitude?.ToString(inv)" data-val="true" data-val-required="حدد الموقع على الخريطة" />
+    <input type="hidden" name="Longitude" id="@(mapId)_lng" value="@Model.Longitude?.ToString(inv)" />
+    <input type="hidden" name="GpsAccuracyM" id="@(mapId)_acc" value="@Model.GpsAccuracyMeters" />
+</div>
+
+<script>
+    (function () {
+        var mapId = "@mapId";
+        var initialLat = @centerLat.ToString(inv);
+        var initialLng = @centerLng.ToString(inv);
+        var MAX_ACCURACY_M = 50;
+
+        function initWhenReady() {
+            if (typeof L === "undefined") { setTimeout(initWhenReady, 100); return; }
+
+            var map = L.map(mapId).setView([initialLat, initialLng], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+
+            var marker = L.marker([initialLat, initialLng], { draggable: true }).addTo(map);
+
+            // accuracyMeters: رقم = جاي من GPS ، null = الفني حدد يدوياً (ما فيه دقة GPS)
+            function updateFields(lat, lng, accuracyMeters) {
+                document.getElementById(mapId + "_lat").value = lat.toFixed(6);
+                document.getElementById(mapId + "_lng").value = lng.toFixed(6);
+                document.getElementById(mapId + "_latLabel").innerText = lat.toFixed(6) + "°";
+                document.getElementById(mapId + "_lngLabel").innerText = lng.toFixed(6) + "°";
+
+                var accInput = document.getElementById(mapId + "_acc");
+                var accLabel = document.getElementById(mapId + "_accLabel");
+                var accWarn = document.getElementById(mapId + "_accWarn");
+
+                if (accuracyMeters !== null && accuracyMeters !== undefined) {
+                    var acc = Math.round(accuracyMeters);
+                    accInput.value = acc;
+                    accLabel.innerText = acc + " م";
+                    accWarn.style.display = acc > MAX_ACCURACY_M ? "block" : "none";
+                } else {
+                    accInput.value = "";
+                    accLabel.innerText = "— م";
+                    accWarn.style.display = "none";
+                }
+            }
+
+            // لو فيه دقة محفوظة من قبل (صفحة التعديل) نعرض التنبيه إذا كانت ضعيفة
+            var savedAcc = parseInt(document.getElementById(mapId + "_acc").value, 10);
+            if (!isNaN(savedAcc) && savedAcc > MAX_ACCURACY_M)
+                document.getElementById(mapId + "_accWarn").style.display = "block";
+
+            // سحب الدبوس يدوياً
+            marker.on('dragend', function () {
+                var pos = marker.getLatLng();
+                updateFields(pos.lat, pos.lng, null);
+            });
+
+            // الضغط على الخريطة
+            map.on('click', function (e) {
+                marker.setLatLng(e.latlng);
+                updateFields(e.latlng.lat, e.latlng.lng, null);
+            });
+
+            // زر "استخدام موقعي الحالي"
+            document.getElementById(mapId + "_geo").addEventListener('click', function () {
+                if (!navigator.geolocation) {
+                    alert("المتصفح لا يدعم تحديد الموقع الجغرافي.");
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(function (pos) {
+                    var lat = pos.coords.latitude, lng = pos.coords.longitude;
+                    marker.setLatLng([lat, lng]);
+                    map.setView([lat, lng], 16);
+                    updateFields(lat, lng, pos.coords.accuracy);
+                }, function () {
+                    alert("تعذّر الحصول على الموقع الحالي. تأكدي من السماح للمتصفح بالوصول للموقع.");
+                }, { enableHighAccuracy: true, timeout: 10000 });
+            });
+
+            // البحث عن الأماكن (Nominatim)
+            var searchInput = document.getElementById(mapId + "_search");
+            var suggestionsBox = document.getElementById(mapId + "_suggestions");
+            var searchTimeout = null;
+
+            searchInput.addEventListener('input', function () {
+                var query = searchInput.value.trim();
+                clearTimeout(searchTimeout);
+                if (query.length < 3) { suggestionsBox.style.display = 'none'; return; }
+
+                searchTimeout = setTimeout(function () {
+                    fetch('https://nominatim.openstreetmap.org/search?format=json&accept-language=ar&countrycodes=sa&q=' + encodeURIComponent(query))
+                        .then(function (res) { return res.json(); })
+                        .then(function (results) {
+                            suggestionsBox.innerHTML = '';
+                            if (!results.length) { suggestionsBox.style.display = 'none'; return; }
+                            results.slice(0, 6).forEach(function (place) {
+                                var item = document.createElement('div');
+                                item.style.padding = '10px 14px';
+                                item.style.cursor = 'pointer';
+                                item.style.borderBottom = '1px solid #eee';
+                                item.style.fontSize = '13px';
+                                item.innerText = place.display_name;
+                                item.addEventListener('mouseenter', function () { item.style.background = '#f5f7f6'; });
+                                item.addEventListener('mouseleave', function () { item.style.background = '#fff'; });
+                                item.addEventListener('click', function () {
+                                    var lat = parseFloat(place.lat), lng = parseFloat(place.lon);
+                                    marker.setLatLng([lat, lng]);
+                                    map.setView([lat, lng], 15);
+                                    updateFields(lat, lng, null);
+                                    searchInput.value = place.display_name;
+                                    suggestionsBox.style.display = 'none';
+                                });
+                                suggestionsBox.appendChild(item);
+                            });
+                            suggestionsBox.style.display = 'block';
+                        })
+                        .catch(function () { suggestionsBox.style.display = 'none'; });
+                }, 400);
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!suggestionsBox.contains(e.target) && e.target !== searchInput) {
+                    suggestionsBox.style.display = 'none';
+                }
+            });
+        }
+
+        initWhenReady();
+    })();
+</script>

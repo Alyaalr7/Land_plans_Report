@@ -1,0 +1,18 @@
+﻿@{
+    ViewData["Title"] = "غير مصرح";
+}
+<section class="status-page">
+    <div class="status-icon status-icon--lock" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="10.5" width="14" height="10" rx="2" />
+            <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+            <path d="M12 14.5v2.5" />
+        </svg>
+    </div>
+    <h1 class="status-title">غير مصرح لك بالوصول</h1>
+    <p class="status-desc">ليست لديك صلاحية لعرض هذه الصفحة أو تنفيذ هذا الإجراء.</p>
+    <div class="status-actions">
+        <a class="dga-btn dga-btn--primary" asp-controller="Dashboard" asp-action="Index">الرجوع للرئيسية</a>
+        <button type="button" class="dga-btn dga-btn--secondary" onclick="history.back()">الرجوع للصفحة السابقة</button>
+    </div>
+</section>

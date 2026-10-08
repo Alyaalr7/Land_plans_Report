@@ -1,0 +1,47 @@
+﻿@* 
+    الاستخدام: <partial name="_ActionSummaryPartial" model="someActionSummaryModel" />
+    الخطوة 3: المراجعة والإرسال (أزرار الحفظ والإرسال انتقلت لـ _WizardNav)
+*@
+@model Land_plans_Report.Models.ActionSummaryViewModel
+
+<div data-wizard-step="3">
+    <div class="form-section">
+        <div class="form-section-header">
+            <div>
+                <h4>مراجعة البيانات</h4>
+                <p>راجع البيانات قبل حفظ التقرير أو إرساله</p>
+            </div>
+        </div>
+        <div class="form-section-body">
+            @if (Model.Rows != null && Model.Rows.Count > 0)
+            {
+                <div class="summary-box">
+                    @foreach (var row in Model.Rows)
+                    {
+                        <div class="summary-row">
+                            <span class="label">@row.Key</span>
+                            <span class="value">@row.Value</span>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-muted mt-0">@Model.Note</p>
+            }
+
+            @* ملخص تلقائي من الحقول المعبّاة (يُبنى في المتصفح، عرض فقط) *@
+            <div class="review" data-wizard-review></div>
+        </div>
+    </div>
+
+    <div class="dga-alert dga-alert--info">
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><circle cx="12" cy="7.8" r=".6" fill="currentColor" /></svg>
+        <div>
+            <p>
+                بمجرد الضغط على "حفظ وإرسال"، سيتم تسجيل العملية في سجل التدقيق وتحويل التقرير تلقائياً
+                لصندوق المعتمِد المخوّل (لا يمكن التراجع عن الإرسال، لكن يمكن للمعتمِد إعادته للتعديل لاحقاً).
+            </p>
+        </div>
+    </div>
+</div>

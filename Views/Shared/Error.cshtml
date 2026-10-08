@@ -1,0 +1,23 @@
+﻿@model ErrorViewModel
+@{
+    ViewData["Title"] = "حدث خطأ";
+}
+<section class="status-page">
+    <div class="status-icon status-icon--error" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7.5v5.5" />
+            <circle cx="12" cy="16.5" r=".6" fill="currentColor" />
+        </svg>
+    </div>
+    <h1 class="status-title">حدث خطأ ما</h1>
+    <p class="status-desc">عذرًا، لم نتمكن من إكمال طلبك. حاول مرة أخرى بعد قليل.</p>
+    <div class="status-actions">
+        <a class="dga-btn dga-btn--primary" asp-controller="Dashboard" asp-action="Index">الرجوع للرئيسية</a>
+        <button type="button" class="dga-btn dga-btn--secondary" onclick="history.back()">الرجوع للصفحة السابقة</button>
+    </div>
+    @if (Model.ShowRequestId)
+    {
+        <p class="status-ref">رقم المرجع: <code>@Model.RequestId</code></p>
+    }
+</section>

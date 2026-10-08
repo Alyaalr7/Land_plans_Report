@@ -1,0 +1,126 @@
+﻿@using Land_plans_Report.Data
+
+@model List<Report>
+@functions {
+    // عرض فقط: تحويل رمز النوع لاسم عربي
+    static string TypeLabel(string? type) => type switch
+    {
+        "plan" => "مخطط",
+        "plot" => "قطعة أرض",
+        "raw" => "أرض خام",
+        "unplanned" => "أرض بلا مخطط",
+        _ => type ?? ""
+    };
+}
+@{
+    // رح ينكتب نوع البيانات الي رح ترجع من الكنترول سواء لست او شي واحد
+    ViewData["Title"] = "التقارير والمعاملات";
+    ViewBag.ActivePage = "reports";
+    string role = ViewBag.UserRole ?? "Technical";
+}
+
+<div class="dash">
+
+    <div class="page-head">
+        <h1 class="dash-title">التقارير والمعاملات</h1>
+        @if (role == "Technical")
+        {
+            <a asp-action="Create" class="dga-btn dga-btn--primary">
+                <svg class="ico"><use href="#i-plus" /></svg> إنشاء تقرير جديد
+            </a>
+        }
+    </div>
+
+    <!-- البحث والتصفية (فوري، بدون تحديث) -->
+    <div class="filter-bar" role="search">
+        <div class="search-field">
+            <svg class="ico" aria-hidden="true"><use href="#i-search" /></svg>
+            <input type="search" id="f-q" placeholder="ابحث برقم التقرير" aria-label="البحث برقم التقرير" autocomplete="off" />
+        </div>
+        <select id="f-status" class="dga-select" aria-label="تصفية حسب الحالة">
+            <option value="">كل الحالات</option>
+            <option value="returned">معادة للتعديل</option>
+            <option value="draft">مسودة</option>
+            <option value="pending">بانتظار الاعتماد</option>
+            <option value="approved">معتمدة</option>
+        </select>
+        <select id="f-type" class="dga-select" aria-label="تصفية حسب النوع">
+            <option value="">كل الأنواع</option>
+            <option value="plan">مخطط</option>
+            <option value="plot">قطعة أرض</option>
+            <option value="raw">أرض خام</option>
+            <option value="unplanned">أرض بلا مخطط</option>
+        </select>
+        <button type="button" id="f-clear" class="dga-btn dga-btn--secondary" hidden>مسح</button>
+    </div>
+
+    <section class="dash-section">
+        <p class="result-count" aria-live="polite"><span id="f-count">@Model.Count</span> تقرير</p>
+
+        <div class="dga-table-wrap">
+            <table class="dga-table" id="reports-table">
+                <thead><tr><th>رقم التقرير</th><th>النوع</th><th>تاريخ الإنشاء</th><th>الحالة</th><th>الإجراء</th></tr></thead>
+                <tbody>
+                    @foreach (var r in Model)
+                    {
+                        <tr data-number="@r.ReportNumber" data-status="@r.Status" data-type="@r.ReportType">
+                            <td><bdi>@r.ReportNumber</bdi></td>
+                            <td>@TypeLabel(r.ReportType)</td>
+                            <td><bdi>@r.CreatedAt.ToString("yyyy/MM/dd")</bdi></td>
+                            <td><partial name="_StatusBadgePartial" model="@r.Status" /></td>
+                            <td><a class="dga-link" asp-controller="Reports" asp-action="Details" asp-route-id="@r.ReportId">عرض</a></td>
+                        </tr>
+                    }
+                    <tr class="dga-table-empty-row" @(Model.Any() ? "hidden" : "")>
+                        <td colspan="5" class="dga-table-empty">لا توجد تقارير مطابقة</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</div>
+
+@section Scripts {
+    <script>
+        // عرض فقط: تصفية الصفوف الموجودة في الصفحة، بدون أي طلب للسيرفر
+        (function () {
+            var q = document.getElementById('f-q');
+            var st = document.getElementById('f-status');
+            var ty = document.getElementById('f-type');
+            var clear = document.getElementById('f-clear');
+            var count = document.getElementById('f-count');
+            var empty = document.querySelector('#reports-table .dga-table-empty-row');
+            var rows = document.querySelectorAll('#reports-table tbody tr[data-status]');
+
+            // قراءة الفلتر من الرابط (مثل: /Reports?status=draft من الداشبورد)
+            var params = new URLSearchParams(location.search);
+            if (params.get('status')) st.value = params.get('status');
+            if (params.get('type')) ty.value = params.get('type');
+            if (params.get('q')) q.value = params.get('q');
+
+            function apply() {
+                var text = q.value.trim().toLowerCase();
+                var shown = 0;
+                rows.forEach(function (row) {
+                    var ok = (!text || row.dataset.number.toLowerCase().indexOf(text) !== -1)
+                        && (!st.value || row.dataset.status === st.value)
+                        && (!ty.value || row.dataset.type === ty.value);
+                    row.hidden = !ok;
+                    if (ok) shown++;
+                });
+                count.textContent = shown;
+                empty.hidden = shown > 0;
+                clear.hidden = !(text || st.value || ty.value);
+            }
+
+            q.addEventListener('input', apply);
+            q.addEventListener('keydown', function (e) { if (e.key === 'Escape') { q.value = ''; apply(); } });
+            st.addEventListener('change', apply);
+            ty.addEventListener('change', apply);
+            clear.addEventListener('click', function () { q.value = ''; st.value = ''; ty.value = ''; apply(); q.focus(); });
+
+            apply();
+        })();
+    </script>
+}

@@ -1,0 +1,49 @@
+﻿@using Land_plans_Report.Data
+@{
+    ViewData["Title"] = "إضافة مستخدم";
+    ViewBag.ActivePage = "users";
+    var roles = ViewBag.Roles as List<Role>;
+}
+
+<div class="page-header">
+    <div>
+        <div class="accent-bar"></div>
+        <h1>إضافة مستخدم جديد</h1>
+        <p>يُنشأ الحساب مباشرة بجدول المستخدمين، ويُسجَّل بسجل التدقيق تلقائياً</p>
+    </div>
+</div>
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="login-error" style="background:var(--status-returned-bg); color:var(--status-returned-text); padding:10px 14px; border-radius:var(--radius-sm); margin-bottom:16px;">
+        @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+        {
+            <div>@e.ErrorMessage</div>
+        }
+    </div>
+}
+
+<form method="post" asp-action="Create">
+    <div class="form-section">
+        <div class="form-section-body">
+            <div class="form-grid cols-2">
+                <div class="field"><label>الاسم الكامل <span class="req">*</span></label><input type="text" name="fullName" required /></div>
+                <div class="field"><label>اسم المستخدم <span class="req">*</span></label><input type="text" name="username" required /></div>
+                <div class="field"><label>كلمة المرور <span class="req">*</span></label><input type="password" name="password" required /></div>
+                <div class="field">
+                    <label>الدور <span class="req">*</span></label>
+                    <select name="roleId" required>
+                        @foreach (var r in roles!)
+                        {
+                            <option value="@r.RoleId">@r.RoleName</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="form-footer-bar">
+        <a asp-action="Index" class="btn btn-ghost">إلغاء</a>
+        <button type="submit" class="btn btn-primary">حفظ المستخدم</button>
+    </div>
+</form>

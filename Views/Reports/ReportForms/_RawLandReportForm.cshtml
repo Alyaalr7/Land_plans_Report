@@ -1,0 +1,163 @@
+﻿@using Land_plans_Report.Models
+@using Land_plans_Report.Helpers
+@model ReportFormViewModel
+
+<div data-wizard-step="1">
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">1</div>
+            <div><h4>بيانات الأرض والموقع</h4><p>البيانات الأساسية للأرض الخام وموقعها الإداري</p></div>
+        </div>
+        <div class="form-section-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label>هل يوجد مخطط معتمد <span class="req">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-option"><input type="radio" asp-for="RawLand.HasApprovedPlan" value="false" /> لا</label>
+                        <label class="radio-option"><input type="radio" asp-for="RawLand.HasApprovedPlan" value="true" /> نعم</label>
+                    </div>
+                    <span asp-validation-for="RawLand.HasApprovedPlan"></span>
+                </div>
+                <div class="field" data-show-for="RawLand.HasApprovedPlan" data-show-when="true" style="display:none;">
+                    <label>كود المخطط <span class="req">*</span></label>
+                    <input asp-for="RawLand.PlanCode" maxlength="50" data-val="true" data-val-required="كود المخطط مطلوب" />
+                    <span asp-validation-for="RawLand.PlanCode"></span>
+                </div>
+                <div class="field" data-show-for="RawLand.HasApprovedPlan" data-show-when="true" style="display:none;">
+                    <label>اسم المخطط <span class="req">*</span></label>
+                    <input asp-for="RawLand.PlanName" maxlength="200" data-val="true" data-val-required="اسم المخطط مطلوب" />
+                    <span asp-validation-for="RawLand.PlanName"></span>
+                </div>
+                <div class="field">
+                    <label>المساحة <span class="req">*</span></label>
+                    <div class="input-suffix">
+                        <input asp-for="RawLand.Area" type="number" step="0.01" min="0.01" />
+                        <span>م²</span>
+                    </div>
+                    <span asp-validation-for="RawLand.Area"></span>
+                </div>
+                <div class="field">
+                    <label>المنطقة <span class="req">*</span></label>
+                    <select asp-for="RawLand.Region">
+                        <option value="">اختر المنطقة</option>
+                        @foreach (var region in Locations.Regions)
+                        {
+                            <option value="@region">@region</option>
+                        }
+                    </select>
+                    <span asp-validation-for="RawLand.Region"></span>
+                </div>
+                <div class="field">
+                    <label>المحافظة <span class="req">*</span></label>
+                    <select asp-for="RawLand.Governorate">
+                        <option value="">اختر المحافظة</option>
+                        @foreach (var region in Locations.Governorates)
+                        {
+                            <optgroup label="@region.Key">
+                                @foreach (var gov in region.Value)
+                                {
+                                    <option value="@gov">@gov</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                    <span asp-validation-for="RawLand.Governorate"></span>
+                </div>
+                <div class="field">
+                    <label>المركز أو القرية <span class="req">*</span></label>
+                    <input asp-for="RawLand.CenterOrVillage" maxlength="150" />
+                    <span asp-validation-for="RawLand.CenterOrVillage"></span>
+                </div>
+                <div class="field">
+                    <label>عدد القطع <span class="req">*</span></label>
+                    <input asp-for="RawLand.PlotCount" type="number" step="1" min="1" />
+                    <span asp-validation-for="RawLand.PlotCount"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section-header" style="border-top:1px solid var(--border);">
+            <div class="step-number">📍</div>
+            <div><h4>الموقع الجغرافي <span class="req">*</span></h4><p>حدد الموقع على الخريطة أو استخدم إحداثيات الحالة الحالية للجوال</p></div>
+        </div>
+        @{
+            var rawLocationModel = new LocationPickerViewModel
+            {
+                FieldPrefix = "Raw",
+                Latitude = (double?)Model.Latitude,
+                Longitude = (double?)Model.Longitude,
+                GpsAccuracyMeters = Model.GpsAccuracyM
+            };
+        }
+        <partial name="_LocationPickerPartial" model="rawLocationModel" />
+        <div class="form-section-body" style="padding-top:0;">
+            <span asp-validation-for="Latitude"></span>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">2</div>
+            <div><h4>الحالة الفنية والمعاينة</h4><p>توثيق حالة الخدمات ونتائج المعاينة الميدانية</p></div>
+        </div>
+        <div class="form-section-body">
+            <div class="form-grid cols-2">
+                <div class="field">
+                    <label>حالة الإسفلت <span class="req">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-option"><input type="radio" asp-for="RawLand.AsphaltStatus" value="@Options.NotExists" /> لا يوجد</label>
+                        <label class="radio-option"><input type="radio" asp-for="RawLand.AsphaltStatus" value="@Options.Partial" /> جزئي</label>
+                        <label class="radio-option"><input type="radio" asp-for="RawLand.AsphaltStatus" value="@Options.Exists" /> يوجد</label>
+                    </div>
+                    <span asp-validation-for="RawLand.AsphaltStatus"></span>
+                </div>
+                <div class="field">
+                    <label>حالة الكهرباء <span class="req">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-option"><input type="radio" asp-for="RawLand.ElectricityStatus" value="@Options.NotExists" /> لا يوجد</label>
+                        <label class="radio-option"><input type="radio" asp-for="RawLand.ElectricityStatus" value="@Options.Exists" /> يوجد</label>
+                    </div>
+                    <span asp-validation-for="RawLand.ElectricityStatus"></span>
+                </div>
+                <div class="field">
+                    <label>البعد عن المركز أو القرية <span class="req">*</span></label>
+                    <div class="input-suffix">
+                        <input asp-for="RawLand.DistanceFromCenter" type="number" step="0.01" min="0" />
+                        <span>كم</span>
+                    </div>
+                    <span asp-validation-for="RawLand.DistanceFromCenter"></span>
+                </div>
+                <div class="field">
+                    <label>حالة العمران <span class="req">*</span></label>
+                    <input asp-for="RawLand.UrbanCondition" maxlength="300" />
+                    <span asp-validation-for="RawLand.UrbanCondition"></span>
+                </div>
+                <div class="field span-2">
+                    <label>الملاحظات والتوصيات</label>
+                    <textarea asp-for="Notes" placeholder="أضف الملاحظات والتوصيات الفنية"></textarea>
+                    <span asp-validation-for="Notes"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div data-wizard-step="2">
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">📷</div>
+            <div><h4>المرفقات</h4><p>رفع صور الأرض قبل المتابعة للمراجعة</p></div>
+        </div>
+        <div class="form-section-body">
+            @{
+                var rawFileModel = new FileUploadViewModel { FieldName = "Photos", Title = "رفع صور الأرض الخام" };
+            }
+            <partial name="_FileUploadPartial" model="rawFileModel" />
+        </div>
+    </div>
+</div>
+
+@{
+    var rawSummaryNote = "راجع البيانات والصور قبل حفظ التقرير أو إرساله. يتحقق النظام من الحقول الإلزامية ثم يحيل التقرير إلى مسار الاعتماد المحدد.";
+}
+<partial name="_ActionSummaryPartial" model="new ActionSummaryViewModel { Note = rawSummaryNote }" />

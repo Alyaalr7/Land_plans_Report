@@ -1,0 +1,164 @@
+﻿@using Land_plans_Report.Models
+@using Land_plans_Report.Helpers
+@model ReportFormViewModel
+
+<div data-wizard-step="1">
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">1</div>
+            <div><h4>بيانات الأرض والموقع</h4><p>يعرض النظام حالة عدم وجود مخطط ويستكمل المستخدم بيانات الموقع</p></div>
+        </div>
+        <div class="form-section-body">
+            <div class="form-grid">
+                <div class="field">
+                    <label>اسم المخطط <span class="req">*</span></label>
+                    <input asp-for="UnplannedLand.PlanName" maxlength="200" />
+                    <span asp-validation-for="UnplannedLand.PlanName"></span>
+                </div>
+                <div class="field">
+                    <label>كود المخطط <span class="req">*</span></label>
+                    <input asp-for="UnplannedLand.PlanCode" maxlength="50" />
+                    <span asp-validation-for="UnplannedLand.PlanCode"></span>
+                </div>
+                <div class="field">
+                    <label>المساحة <span class="req">*</span></label>
+                    <div class="input-suffix">
+                        <input asp-for="UnplannedLand.Area" type="number" step="0.01" min="0.01" />
+                        <span>م²</span>
+                    </div>
+                    <span asp-validation-for="UnplannedLand.Area"></span>
+                </div>
+                <div class="field">
+                    <label>المنطقة <span class="req">*</span></label>
+                    <select asp-for="UnplannedLand.Region">
+                        <option value="">اختر المنطقة</option>
+                        @foreach (var region in Locations.Regions)
+                        {
+                            <option value="@region">@region</option>
+                        }
+                    </select>
+                    <span asp-validation-for="UnplannedLand.Region"></span>
+                </div>
+                <div class="field">
+                    <label>المحافظة <span class="req">*</span></label>
+                    <select asp-for="UnplannedLand.Governorate">
+                        <option value="">اختر المحافظة</option>
+                        @foreach (var region in Locations.Governorates)
+                        {
+                            <optgroup label="@region.Key">
+                                @foreach (var gov in region.Value)
+                                {
+                                    <option value="@gov">@gov</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                    <span asp-validation-for="UnplannedLand.Governorate"></span>
+                </div>
+                <div class="field">
+                    <label>المركز أو القرية <span class="req">*</span></label>
+                    <input asp-for="UnplannedLand.CenterOrVillage" maxlength="150" />
+                    <span asp-validation-for="UnplannedLand.CenterOrVillage"></span>
+                </div>
+                <div class="field">
+                    <label>عدد القطع <span class="req">*</span></label>
+                    <input asp-for="UnplannedLand.PlotCount" type="number" step="1" min="1" />
+                    <span asp-validation-for="UnplannedLand.PlotCount"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section-header" style="border-top:1px solid var(--border);">
+            <div class="step-number">📍</div>
+            <div><h4>الموقع الجغرافي <span class="req">*</span></h4><p>حدد الموقع على الخريطة أو استخدم إحداثيات الحالة الحالية للجوال</p></div>
+        </div>
+        @{
+            var unplannedLocationModel = new LocationPickerViewModel
+            {
+                FieldPrefix = "Unplanned",
+                Latitude = (double?)Model.Latitude,
+                Longitude = (double?)Model.Longitude,
+                GpsAccuracyMeters = Model.GpsAccuracyM
+            };
+        }
+        <partial name="_LocationPickerPartial" model="unplannedLocationModel" />
+        <div class="form-section-body" style="padding-top:0;">
+            <span asp-validation-for="Latitude"></span>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">2</div>
+            <div><h4>الحالة الفنية والمعاينة</h4><p>تسجيل حالة الخدمات ونتائج المعاينة الميدانية</p></div>
+        </div>
+        <div class="form-section-body">
+            <div class="form-grid cols-2">
+                <div class="field">
+                    <label>حالة الإسفلت <span class="req">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-option"><input type="radio" asp-for="UnplannedLand.AsphaltStatus" value="@Options.NotExists" /> لا يوجد</label>
+                        <label class="radio-option"><input type="radio" asp-for="UnplannedLand.AsphaltStatus" value="@Options.Partial" /> جزئي</label>
+                        <label class="radio-option"><input type="radio" asp-for="UnplannedLand.AsphaltStatus" value="@Options.Exists" /> يوجد</label>
+                    </div>
+                    <span asp-validation-for="UnplannedLand.AsphaltStatus"></span>
+                </div>
+                <div class="field">
+                    <label>هل الموقع داخل حد التنمية <span class="req">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-option"><input type="radio" asp-for="UnplannedLand.InsideDevelopmentBoundary" value="@Options.No" /> لا</label>
+                        <label class="radio-option"><input type="radio" asp-for="UnplannedLand.InsideDevelopmentBoundary" value="@Options.Yes" /> نعم</label>
+                    </div>
+                    <span asp-validation-for="UnplannedLand.InsideDevelopmentBoundary"></span>
+                </div>
+                <div class="field">
+                    <label>حالة الكهرباء <span class="req">*</span></label>
+                    <div class="radio-group">
+                        <label class="radio-option"><input type="radio" asp-for="UnplannedLand.ElectricityStatus" value="@Options.NotExists" /> لا يوجد</label>
+                        <label class="radio-option"><input type="radio" asp-for="UnplannedLand.ElectricityStatus" value="@Options.Exists" /> يوجد</label>
+                    </div>
+                    <span asp-validation-for="UnplannedLand.ElectricityStatus"></span>
+                </div>
+                <div class="field">
+                    <label>البعد عن المركز أو القرية <span class="req">*</span></label>
+                    <div class="input-suffix">
+                        <input asp-for="UnplannedLand.DistanceFromCenter" type="number" step="0.01" min="0" />
+                        <span>كم</span>
+                    </div>
+                    <span asp-validation-for="UnplannedLand.DistanceFromCenter"></span>
+                </div>
+                <div class="field span-2">
+                    <label>حالة العمران <span class="req">*</span></label>
+                    <input asp-for="UnplannedLand.UrbanCondition" maxlength="300" />
+                    <small class="field-hint">وصف حالة العمران والمباني القائمة في القرية</small>
+                    <span asp-validation-for="UnplannedLand.UrbanCondition"></span>
+                </div>
+                <div class="field span-2">
+                    <label>الملاحظات والتوصيات</label>
+                    <textarea asp-for="Notes" placeholder="أضف الملاحظات والتوصيات الفنية"></textarea>
+                    <span asp-validation-for="Notes"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div data-wizard-step="2">
+    <div class="form-section">
+        <div class="form-section-header">
+            <div class="step-number">📷</div>
+            <div><h4>المرفقات</h4><p>رفع صور الموقع قبل المتابعة للمراجعة</p></div>
+        </div>
+        <div class="form-section-body">
+            @{
+                var unplannedFileModel = new FileUploadViewModel { FieldName = "Photos", Title = "رفع صور الموقع" };
+            }
+            <partial name="_FileUploadPartial" model="unplannedFileModel" />
+        </div>
+    </div>
+</div>
+
+@{
+    var unplannedSummaryNote = "راجع بيانات الموقع والمعاينة والصور قبل الإرسال. يتحقق النظام من الحقول الإلزامية ثم يحيل التقرير إلى مسار الاعتماد المحدد.";
+}
+<partial name="_ActionSummaryPartial" model="new ActionSummaryViewModel { Note = unplannedSummaryNote }" />

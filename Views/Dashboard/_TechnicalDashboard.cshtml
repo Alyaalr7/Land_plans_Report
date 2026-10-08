@@ -1,0 +1,132 @@
+﻿@using Land_plans_Report.Data
+@model List<Report>
+@functions {
+    // عرض فقط: تحويل رمز النوع لاسم عربي
+    static string TypeLabel(string? type) => type switch
+    {
+        "plan" => "مخطط",
+        "plot" => "قطعة أرض",
+        "raw" => "أرض خام",
+        "unplanned" => "أرض بلا مخطط",
+        _ => type ?? ""
+    };
+}
+
+<div class="dash">
+
+    <h1 class="dash-title">لوحة التحكم</h1>
+
+    <!-- المؤشرات (تفلتر جدول أحدث التقارير) -->
+    <div class="stat-grid" role="group" aria-label="تصفية التقارير حسب الحالة">
+        <button type="button" class="stat-card" data-status="returned" aria-pressed="false">
+            <span class="stat-icon is-danger"><svg class="ico"><use href="#i-return" /></svg></span>
+            <span class="stat-label">معادة للتعديل</span>
+            <span class="stat-value">@ViewBag.CountReturned</span>
+        </button>
+        <button type="button" class="stat-card" data-status="draft" aria-pressed="false">
+            <span class="stat-icon is-neutral"><svg class="ico"><use href="#i-draft" /></svg></span>
+            <span class="stat-label">مسودات</span>
+            <span class="stat-value">@ViewBag.CountDraft</span>
+        </button>
+        <button type="button" class="stat-card" data-status="pending" aria-pressed="false">
+            <span class="stat-icon is-warning"><svg class="ico"><use href="#i-clock" /></svg></span>
+            <span class="stat-label">بانتظار الاعتماد</span>
+            <span class="stat-value">@ViewBag.CountPending</span>
+        </button>
+        <button type="button" class="stat-card" data-status="approved" aria-pressed="false">
+            <span class="stat-icon is-success"><svg class="ico"><use href="#i-check" /></svg></span>
+            <span class="stat-label">معتمدة</span>
+            <span class="stat-value">@ViewBag.CountApproved</span>
+        </button>
+    </div>
+
+    <!-- إنشاء تقرير -->
+    <div class="create-bar">
+        <strong><svg class="ico"><use href="#i-file-plus" /></svg> إنشاء تقرير جديد</strong>
+        <div class="create-bar-links">
+            <a asp-controller="Reports" asp-action="Create" asp-route-type="plan"><svg class="ico ico-sm"><use href="#i-plus" /></svg> مخطط</a>
+            <a asp-controller="Reports" asp-action="Create" asp-route-type="plot"><svg class="ico ico-sm"><use href="#i-plus" /></svg> قطعة أرض</a>
+            <a asp-controller="Reports" asp-action="Create" asp-route-type="raw"><svg class="ico ico-sm"><use href="#i-plus" /></svg> أرض خام</a>
+            <a asp-controller="Reports" asp-action="Create" asp-route-type="unplanned"><svg class="ico ico-sm"><use href="#i-plus" /></svg> أرض بلا مخطط</a>
+        </div>
+    </div>
+
+    <!-- أحدث التقارير -->
+    <section class="dash-section" aria-labelledby="recent-title">
+        <div class="dash-section-head">
+            <h2 id="recent-title">أحدث تقاريري <span class="dash-filter-label" id="recent-filter"></span></h2>
+            <a class="dga-link" id="recent-all" asp-controller="Reports" asp-action="Index">عرض الكل</a>
+        </div>
+
+        <div class="dga-table-wrap">
+            <table class="dga-table" id="recent-table">
+                <thead><tr><th>رقم التقرير</th><th>النوع</th><th>تاريخ الإنشاء</th><th>الحالة</th><th>الإجراء</th></tr></thead>
+                <tbody>
+                    @foreach (var r in Model)
+                    {
+                        <tr data-status="@r.Status">
+                            <td><bdi>@r.ReportNumber</bdi></td>
+                            <td>@TypeLabel(r.ReportType)</td>
+                            <td><bdi>@r.CreatedAt.ToString("yyyy/MM/dd")</bdi></td>
+                            <td><partial name="_StatusBadgePartial" model="@r.Status" /></td>
+                            <td>
+                                @if (r.Status == "draft")
+                                {
+                                    <a class="dga-link" asp-controller="Reports" asp-action="Edit" asp-route-id="@r.ReportId">إكمال</a>
+                                }
+                                else
+                                {
+                                    <a class="dga-link" asp-controller="Reports" asp-action="Details" asp-route-id="@r.ReportId">عرض</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    <tr class="dga-table-empty-row" hidden>
+                        <td colspan="5" class="dga-table-empty">لا توجد تقارير</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</div>
+
+<script>
+    // عرض فقط: الضغط على بطاقة يفلتر الجدول (أول 5)، والضغط مرة ثانية يرجّع الكل
+    (function () {
+        var MAX = 5;
+        var cards = document.querySelectorAll('.stat-card[data-status]');
+        var rows = document.querySelectorAll('#recent-table tbody tr[data-status]');
+        var empty = document.querySelector('.dga-table-empty-row');
+        var label = document.getElementById('recent-filter');
+        var allLink = document.getElementById('recent-all');
+        var baseHref = allLink.getAttribute('href');
+        var current = '';
+
+        function show(status) {
+            current = status;
+            var shown = 0;
+            rows.forEach(function (row) {
+                var match = !status || row.dataset.status === status;
+                row.hidden = !(match && shown < MAX);
+                if (match && shown < MAX) shown++;
+            });
+            empty.hidden = shown > 0;
+            allLink.setAttribute('href', status ? baseHref + '?status=' + status : baseHref);
+            label.textContent = '';
+            cards.forEach(function (c) {
+                var on = c.dataset.status === status;
+                c.setAttribute('aria-pressed', on ? 'true' : 'false');
+                if (on) label.textContent = '· ' + c.querySelector('.stat-label').textContent;
+            });
+        }
+
+        cards.forEach(function (c) {
+            c.addEventListener('click', function () {
+                show(current === c.dataset.status ? '' : c.dataset.status);
+            });
+        });
+
+        show('');
+    })();
+</script>

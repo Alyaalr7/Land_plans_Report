@@ -1,0 +1,54 @@
+﻿@using Land_plans_Report.Data
+@model List<User>
+@{
+    ViewData["Title"] = "المستخدمون والصلاحيات";
+    ViewBag.ActivePage = "users";
+}
+
+<div class="page-header">
+    <div>
+        <div class="accent-bar"></div>
+        <h1>المستخدمون والصلاحيات</h1>
+        <p>إدارة حسابات المستخدمين وأدوارهم داخل النظام</p>
+    </div>
+    <a asp-action="Create" class="btn btn-primary">+ إضافة مستخدم جديد</a>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr><th>م</th><th>الاسم</th><th>اسم المستخدم</th><th>الدور</th><th>الحالة</th></tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr><td colspan="5" style="text-align:center; color:var(--text-muted);">لا يوجد مستخدمون بعد</td></tr>
+                }
+                @{
+                    int i = 1;
+                }
+                @foreach (var u in Model)
+                {
+                    <tr>
+                        <td>@i</td>
+                        <td>@u.FullName</td>
+                        <td>@u.Username</td>
+                        <td>@u.Role?.RoleName</td>
+                        <td>
+                            @if (u.IsActive)
+                            {
+                                <span class="badge approved">فعّال</span>
+                            }
+                            else
+                            {
+                                <span class="badge draft">معطّل</span>
+                            }
+                        </td>
+                    </tr>
+                    i++;
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

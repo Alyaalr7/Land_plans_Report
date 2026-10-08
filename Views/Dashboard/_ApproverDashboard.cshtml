@@ -1,0 +1,71 @@
+﻿@using Land_plans_Report.Data
+@model List<Report>
+
+<div class="page-header">
+    <div>
+        <div class="accent-bar"></div>
+        <h1>مرحباً @ViewBag.FullName</h1>
+        <p>لديك @ViewBag.CountPending تقريراً بانتظار قرارك</p>
+    </div>
+    <a asp-controller="Approval" asp-action="Index" class="btn btn-primary">مراجعة التقارير المعلقة →</a>
+</div>
+
+<div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-icon gold">@ViewBag.CountPending</div><div><div class="kpi-value">@ViewBag.CountPending</div><div class="kpi-label">بانتظار قرارك</div></div></div>
+    <div class="kpi-card"><div class="kpi-icon green">@ViewBag.CountApproved</div><div><div class="kpi-value">@ViewBag.CountApproved</div><div class="kpi-label">اعتمدتها</div></div></div>
+    <div class="kpi-card"><div class="kpi-icon red">@ViewBag.CountReturned</div><div><div class="kpi-value">@ViewBag.CountReturned</div><div class="kpi-label">أعدتها للتعديل</div></div></div>
+</div>
+
+@{
+    var pendingList = ViewBag.PendingList as List<Report>;
+}
+<div class="card mb-16">
+    <div class="card-header"><h3>أقدم التقارير المعلقة</h3><p>الأولوية للأقدم إرسالاً</p></div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th>رقم التقرير</th><th>النوع</th><th>تاريخ الإرسال</th><th></th></tr></thead>
+            <tbody>
+                @if (pendingList == null || !pendingList.Any())
+                {
+                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">لا توجد تقارير معلقة حالياً 🎉</td></tr>
+                }
+                else
+                {
+                    @foreach (var p in pendingList)
+                    {
+                        <tr>
+                            <td>@p.ReportNumber</td>
+                            <td>@p.ReportType</td>
+                            <td>@(p.SubmittedAt?.ToString("dd MMM yyyy") ?? "-")</td>
+                            <td><a class="link-action" asp-controller="Approval" asp-action="Review" asp-route-id="@p.ReportId">مراجعة</a></td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h3>آخر قراراتي</h3></div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th>رقم التقرير</th><th>النوع</th><th>الحالة النهائية</th><th></th></tr></thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">لا توجد قرارات سابقة بعد</td></tr>
+                }
+                @foreach (var r in Model.Where(r => r.Status != "pending"))
+                {
+                    <tr>
+                        <td>@r.ReportNumber</td>
+                        <td>@r.ReportType</td>
+                        <td><partial name="_StatusBadgePartial" model="@r.Status" /></td>
+                        <td><a class="link-action" asp-controller="Reports" asp-action="Details" asp-route-id="@r.ReportId">عرض</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

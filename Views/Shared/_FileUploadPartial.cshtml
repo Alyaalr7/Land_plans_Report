@@ -1,0 +1,36 @@
+﻿@* 
+    الاستخدام: <partial name="_FileUploadPartial" model="new FileUploadViewModel { FieldName = "PlanPhotos", Title = "رفع صور المخطط" } " />
+*@
+@model Land_plans_Report.Models.FileUploadViewModel
+
+<div class="field span-3">
+    <label>
+        @Model.Title @if (Model.Required)
+        {
+            <span class="req">*</span>
+        }
+    </label>
+    <div class="file-upload-zone" data-upload-target="@Model.FieldName" tabindex="0" role="button" aria-label="منطقة رفع الملفات، اضغط Enter أو Space لاختيار الملفات">
+        <div class="icon" aria-hidden="true">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
+        </div>
+        <strong>اسحب الملفات وأفلتها هنا</strong>
+        <span>الصيغ المسموحة: JPG, JPEG, PNG, PDF — الحد الأقصى 10 ميجابايت لكل ملف، و3 ملفات كحد أقصى</span>
+        <span class="dga-btn dga-btn--secondary dga-btn--sm file-upload-browse" aria-hidden="true">استعراض الملفات</span>
+        <input type="file" name="photos" multiple accept=".jpg,.jpeg,.png,.pdf" hidden />
+    </div>
+    <div class="file-list">
+        @if (Model.SampleFileNames != null)
+        {
+            foreach (var f in Model.SampleFileNames)
+            {
+                <div class="file-chip">
+                    <span class="file-name">📎 @f</span>
+                    <button type="button" title="حذف">✕</button>
+                </div>
+            }
+        }
+    </div>
+    @Html.ValidationMessage("Photos")
+
+</div>
