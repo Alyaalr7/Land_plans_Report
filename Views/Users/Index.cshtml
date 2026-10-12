@@ -1,54 +1,154 @@
 ﻿@using Land_plans_Report.Data
+@using Land_plans_Report.Helpers
 @model List<User>
 @{
     ViewData["Title"] = "المستخدمون والصلاحيات";
     ViewBag.ActivePage = "users";
+
+    var roles = ViewBag.Roles as List<Role> ?? new();
+    var lastLogins = ViewBag.LastLogins as Dictionary<int, DateTime> ?? new();
+
+    int total = Model.Count;
+    int active = Model.Count(u => u.IsActive);
+
+    string LoginText(int userId) => lastLogins.TryGetValue(userId, out var d) ? DateDisplay.When(d) : "—";
+    int i = 0;
 }
 
-<div class="page-header">
-    <div>
-        <div class="accent-bar"></div>
-        <h1>المستخدمون والصلاحيات</h1>
-        <p>إدارة حسابات المستخدمين وأدوارهم داخل النظام</p>
+<div class="dash">
+
+    <div class="page-head">
+        <h1 class="dash-title">المستخدمون والصلاحيات</h1>
+        <a asp-action="Create" class="dga-btn dga-btn--primary">
+            <svg class="ico"><use href="#i-plus" /></svg> إضافة مستخدم
+        </a>
     </div>
-    <a asp-action="Create" class="btn btn-primary">+ إضافة مستخدم جديد</a>
+
+    @if (TempData["UserError"] is string error)
+    {
+        <div class="dga-alert dga-alert--danger" role="alert"><div><p>@error</p></div></div>
+    }
+
+    <div class="stat-grid">
+        <div class="stat-card">
+            <span class="stat-icon is-neutral"><svg class="ico"><use href="#i-users" /></svg></span>
+            <span class="stat-label">إجمالي المستخدمين</span>
+            <span class="stat-value">@total</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon is-success"><svg class="ico"><use href="#i-check" /></svg></span>
+            <span class="stat-label">المستخدمون النشطون</span>
+            <span class="stat-value">@active</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon is-danger"><svg class="ico"><use href="#i-clock" /></svg></span>
+            <span class="stat-label">الحسابات المعطّلة</span>
+            <span class="stat-value">@(total - active)</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon is-info"><svg class="ico"><use href="#i-pen" /></svg></span>
+            <span class="stat-label">الأدوار المعرّفة</span>
+            <span class="stat-value">@roles.Count</span>
+        </div>
+    </div>
+
+    <section class="dash-section">
+        <div class="dash-section-head"><h2>قائمة المستخدمين</h2></div>
+
+        <div class="filter-bar" role="search">
+            <div class="search-field">
+                <svg class="ico" aria-hidden="true"><use href="#i-search" /></svg>
+                <input type="search" id="u-q" placeholder="ابحث بالاسم أو رقم الهوية أو البريد" aria-label="البحث" autocomplete="off" />
+            </div>
+            <select id="u-role" class="dga-select" aria-label="الدور">
+                <option value="">كل الأدوار</option>
+                @foreach (var r in roles)
+                {
+                    <option value="@r.RoleName">@r.RoleName</option>
+                }
+            </select>
+            <select id="u-status" class="dga-select" aria-label="الحالة">
+                <option value="">كل الحالات</option>
+                <option value="active">نشط</option>
+                <option value="inactive">معطّل</option>
+            </select>
+        </div>
+
+        <div class="dga-table-wrap">
+            <table class="dga-table" id="users-table">
+                <thead><tr><th class="col-num">م</th><th>اسم المستخدم</th><th>رقم الهوية</th><th>البريد الإلكتروني</th><th>الدور</th><th>آخر دخول</th><th>الحالة</th><th>الإجراء</th></tr></thead>
+                <tbody>
+                    @foreach (var u in Model)
+                    {
+                        i++;
+                        <tr data-search="@($"{u.FullName} {u.NationalId} {u.Email}")" data-role="@u.Role?.RoleName" data-status="@(u.IsActive ? "active" : "inactive")">
+                            <td class="col-num row-num">@i</td>
+                            <td><a class="user-cell" asp-action="Details" asp-route-id="@u.UserId">@u.FullName</a></td>
+                            <td><bdi>@(u.NationalId ?? "—")</bdi></td>
+                            <td><bdi>@(u.Email ?? "—")</bdi></td>
+                            <td>@u.Role?.RoleName</td>
+                            <td class="col-time">@LoginText(u.UserId)</td>
+                            <td><span class="badge @(u.IsActive ? "approved" : "draft")">@(u.IsActive ? "نشط" : "معطّل")</span></td>
+                            <td><a class="dga-link" asp-action="Details" asp-route-id="@u.UserId">عرض</a></td>
+                        </tr>
+                    }
+                    <tr class="dga-table-empty-row" @(Model.Any() ? "hidden" : "")>
+                        <td colspan="8" class="dga-table-empty">لا يوجد مستخدمون مطابقون</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="dash-section">
+        <div class="dash-section-head"><h2>الأدوار والصلاحيات</h2></div>
+        <div class="role-grid">
+            @foreach (var r in roles)
+            {
+                <article class="role-card">
+                    <header>
+                        <h3>@r.RoleName</h3>
+                        <span class="role-count">@Model.Count(u => u.RoleId == r.RoleId && u.IsActive) مستخدم</span>
+                    </header>
+                    <ul>
+                        @foreach (var p in RolePermissions.For(r.RoleCode))
+                        {
+                            <li>@p</li>
+                        }
+                    </ul>
+                </article>
+            }
+        </div>
+    </section>
+
 </div>
 
-<div class="card">
-    <div class="table-wrap">
-        <table class="data-table">
-            <thead>
-                <tr><th>م</th><th>الاسم</th><th>اسم المستخدم</th><th>الدور</th><th>الحالة</th></tr>
-            </thead>
-            <tbody>
-                @if (!Model.Any())
-                {
-                    <tr><td colspan="5" style="text-align:center; color:var(--text-muted);">لا يوجد مستخدمون بعد</td></tr>
-                }
-                @{
-                    int i = 1;
-                }
-                @foreach (var u in Model)
-                {
-                    <tr>
-                        <td>@i</td>
-                        <td>@u.FullName</td>
-                        <td>@u.Username</td>
-                        <td>@u.Role?.RoleName</td>
-                        <td>
-                            @if (u.IsActive)
-                            {
-                                <span class="badge approved">فعّال</span>
-                            }
-                            else
-                            {
-                                <span class="badge draft">معطّل</span>
-                            }
-                        </td>
-                    </tr>
-                    i++;
-                }
-            </tbody>
-        </table>
-    </div>
-</div>
+@section Scripts {
+    <script>
+        (function () {
+            // الفلترة الفورية
+            var q = document.getElementById('u-q');
+            var role = document.getElementById('u-role');
+            var status = document.getElementById('u-status');
+            var rows = document.querySelectorAll('#users-table tbody tr[data-status]');
+            var empty = document.querySelector('#users-table .dga-table-empty-row');
+
+            function apply() {
+                var text = q.value.trim().toLowerCase();
+                var shown = 0;
+                rows.forEach(function (r) {
+                    var ok = (!text || r.dataset.search.toLowerCase().indexOf(text) !== -1)
+                          && (!role.value || r.dataset.role === role.value)
+                          && (!status.value || r.dataset.status === status.value);
+                    r.hidden = !ok;
+                    if (ok) r.querySelector('.row-num').textContent = ++shown;   // ترقيم تلقائي للظاهر
+                });
+                empty.hidden = shown > 0;
+            }
+            q.addEventListener('input', apply);
+            role.addEventListener('change', apply);
+            status.addEventListener('change', apply);
+
+        })();
+    </script>
+}

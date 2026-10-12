@@ -1,81 +1,89 @@
 ﻿using Land_plans_Report.Data;
+using Land_plans_Report.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Land_plans_Report.Controllers
 {
+    // سجل التدقيق — لمدير النظام فقط
+    // القاعدة: عمليات المسودات لا تظهر لغير صاحبها، حتى للمدير
     public class AuditLogController : Controller
     {
         private readonly AppDbContext _db;
         public AuditLogController(AppDbContext db) => _db = db;
 
-        // GET: /AuditLog — سجل مخصص لكل دور، يعرض بس ما يخصه ويهمه
-        //
-        // القاعدة الأهم: أي عملية مرتبطة بتقرير لسه "مسودة" لا تظهر لأي شخص
-        // غير من أنشأ التقرير نفسه — حتى مدير النظام، بلا استثناء
-        //
-        // "الأشياء المهمة" لكل دور (مو Dump خام لكل شي):
-        //   - منسوب فني: عمليات لها علاقة بتقاريره هو فقط (إرسال، رد، اعتماد نهائي)
-        //   - معتمِد: قراراته هو فقط (موافقة/إعادة) — بدون ضجيج تسجيل دخول أو إدارة مستخدمين
-        //   - مدير النظام: كل شي إداري ونظامي، ما عدا تفاصيل المسودات الخاصة بغيره
-        public async Task<IActionResult> Index()
+        private const int MaxRows = 500;
+
+        // GET: /AuditLog?userId=5&period=7
+        public async Task<IActionResult> Index(int? userId, string period = "30")
         {
-            var userId = HttpContext.Session.GetInt32("UserId");
-            var roleCode = HttpContext.Session.GetString("RoleCode");
-            if (userId == null) return RedirectToAction("Login", "Account");
+            var me = HttpContext.Session.GetInt32("UserId");
+            if (me == null) return RedirectToAction("Login", "Account");
+            if (HttpContext.Session.GetString("RoleCode") != "Admin") return RedirectToAction("AccessDenied", "Account");
+            ViewBag.UserRole = "Admin";
 
-            ViewBag.UserRole = roleCode == "Admin" ? "Admin" : (roleCode == "Technical" ? "Technical" : "Approver");
-
-            // معرّفات التقارير التي ما زالت "مسودة" لغير المستخدم الحالي — تُستبعد أحداثها بالكامل
+            // مسودات غيري: عملياتها مخفية بالكامل
             var hiddenDraftReportIds = await _db.Reports
-                .Where(r => r.Status == "draft" && r.CreatedByUserId != userId.Value)
+                .Where(r => r.Status == "draft" && r.CreatedByUserId != me.Value)
                 .Select(r => r.ReportId)
                 .ToListAsync();
 
-            var query = _db.AuditLog
+            var visible = _db.AuditLog
+                .Where(a => a.ActionType != "Withdraw")
                 .Where(a => a.ReportId == null || !hiddenDraftReportIds.Contains(a.ReportId.Value));
 
-            if (roleCode == "Admin")
-            {
-                // مدير النظام: كل شي إداري ونظامي (ما عدا المسودات الخاصة بغيره، مُستبعدة أعلاه)
-                // بدون أحداث "Login" الروتينية كي لا يغرق السجل بضجيج غير مفيد إدارياً
-                query = query.Where(a => a.ActionType != "Login");
-            }
-            else if (roleCode == "Technical")
-            {
-                // منسوب فني: بس الأحداث المرتبطة بتقاريره هو (إرسال، رد عليه، اعتماد نهائي)
-                var myReportIds = await _db.Reports
-                    .Where(r => r.CreatedByUserId == userId.Value)
-                    .Select(r => r.ReportId)
-                    .ToListAsync();
-                query = query.Where(a => a.ReportId != null && myReportIds.Contains(a.ReportId.Value)
-                    && (a.ActionType == "Submit" || a.ActionType == "Approve" || a.ActionType == "Return"));
-            }
-            else // PlotApprover / PlanApprover
-            {
-                // معتمِد: قراراته هو فقط، بدون أي عمليات إدارية أو عمليات مستخدمين آخرين
-                query = query.Where(a => a.UserId == userId.Value
-                    && (a.ActionType == "Approve" || a.ActionType == "Return"));
-            }
+            // المؤشرات (على كل السجل، بدون الفلاتر)
+            var today = DateTime.Today;
+            var week = today.AddDays(-6);
 
-            var entries = await query
+            var vm = new AuditLogViewModel
+            {
+                TodayCount = await visible.CountAsync(a => a.ActionDate >= today),
+                SubmittedWeek = await visible.CountAsync(a => a.ActionDate >= week && (a.ActionType == "Submit" || a.ActionType == "Resubmit")),
+                DecisionsWeek = await visible.CountAsync(a => a.ActionDate >= week && (a.ActionType == "Approve" || a.ActionType == "Return")),
+                FailedLoginsWeek = await visible.CountAsync(a => a.ActionDate >= week && a.ActionType == "LoginFailed"),
+                UserId = userId,
+                Period = period
+            };
+
+            // الفلاتر
+            var query = visible;
+            if (userId != null) query = query.Where(a => a.UserId == userId);
+
+            DateTime? from = period switch
+            {
+                "today" => today,
+                "7" => week,
+                "30" => today.AddDays(-29),
+                _ => null
+            };
+            if (from != null) query = query.Where(a => a.ActionDate >= from);
+
+            vm.Rows = await query
                 .OrderByDescending(a => a.ActionDate)
-                .Take(200)
+                .Take(MaxRows)
+                .Select(a => new UserActivityRow
+                {
+
+                    ActionType = a.ActionType,
+                    Details = a.ActionDetails,
+                    Date = a.ActionDate,
+                    UserId = a.UserId,
+                    ReportCreator = _db.Reports.Where(r => r.ReportId == a.ReportId).Select(r => r.CreatedByUser!.FullName).FirstOrDefault(),
+                    RoleName = _db.Users.Where(u => u.UserId == a.UserId).Select(u => u.Role!.RoleName).FirstOrDefault(),
+                    UserName = _db.Users.Where(u => u.UserId == a.UserId).Select(u => u.FullName).FirstOrDefault(),
+                    ReportId = a.ReportId,
+                    ReportNumber = _db.Reports.Where(r => r.ReportId == a.ReportId).Select(r => r.ReportNumber).FirstOrDefault(),
+                    ReportType = _db.Reports.Where(r => r.ReportId == a.ReportId).Select(r => r.ReportType).FirstOrDefault()
+                })
                 .ToListAsync();
+            vm.Truncated = vm.Rows.Count == MaxRows;
 
-            var userIds = entries.Select(e => e.UserId).Distinct().ToList();
-            var userNames = await _db.Users
-                .Where(u => userIds.Contains(u.UserId))
-                .ToDictionaryAsync(u => u.UserId, u => u.FullName);
+            var users = await _db.Users.OrderBy(u => u.FullName).Select(u => new { u.UserId, u.FullName }).ToListAsync();
+            vm.Users = users.Select(u => (u.UserId, u.FullName)).ToList();
+            vm.UserName = users.FirstOrDefault(u => u.UserId == userId)?.FullName;
 
-            var reportIds = entries.Where(e => e.ReportId.HasValue).Select(e => e.ReportId!.Value).Distinct().ToList();
-            var reportNumbers = await _db.Reports
-                .Where(r => reportIds.Contains(r.ReportId))
-                .ToDictionaryAsync(r => r.ReportId, r => r.ReportNumber);
-
-            ViewBag.UserNames = userNames;
-            ViewBag.ReportNumbers = reportNumbers;
-            return View(entries);
+            return View(vm);
         }
     }
 }

@@ -1,0 +1,194 @@
+﻿@using Land_plans_Report.Helpers
+@using Land_plans_Report.Models
+@model UserProfileViewModel
+@{
+    var u = Model.User;
+    ViewData["Title"] = u.FullName;
+    ViewBag.ActivePage = "users";
+    bool isSelf = Context.Session.GetInt32("UserId") == u.UserId;
+    string role = u.Role?.RoleCode ?? "";
+
+    int Count(string status) => Model.ReportCounts.TryGetValue(status, out var n) ? n : 0;
+
+    void Field(string label, string? value)
+    {
+        <div class="kv"><dt>@label</dt><dd><bdi>@(string.IsNullOrWhiteSpace(value) ? "—" : value)</bdi></dd></div>
+    }
+}
+
+<div class="dash">
+
+    <nav class="breadcrumb" aria-label="مسار التصفح">
+        <a asp-action="Index">المستخدمون</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">@u.FullName</span>
+    </nav>
+
+    @if (TempData["UserError"] is string error)
+    {
+        <div class="dga-alert dga-alert--danger" role="alert"><div><p>@error</p></div></div>
+    }
+
+    <!-- رأس الملف -->
+    <div class="profile-head">
+        <div class="profile-title">
+            <h1 class="dash-title">@u.FullName</h1>
+            <div class="page-meta">
+                @u.Role?.RoleName
+                <span class="badge @(u.IsActive ? "approved" : "draft")">@(u.IsActive ? "نشط" : "معطّل")</span>
+            </div>
+        </div>
+        <div class="page-actions">
+            <a asp-action="Edit" asp-route-id="@u.UserId" class="dga-btn dga-btn--secondary">
+                <svg class="ico"><use href="#i-pen" /></svg> تعديل
+            </a>
+            @if (!isSelf)
+            {
+                <form method="post" asp-action="ToggleActive" asp-route-id="@u.UserId">
+                    <input type="hidden" name="returnTo" value="details" />
+                    <button type="button" class="dga-btn @(u.IsActive ? "dga-btn--danger" : "dga-btn--primary")" data-open-dialog>
+                        @(u.IsActive ? "تعطيل الحساب" : "تفعيل الحساب")
+                    </button>
+                    <dialog class="dga-dialog" aria-labelledby="toggle-title">
+                        <h2 id="toggle-title">@(u.IsActive ? "تعطيل" : "تفعيل") حساب @u.FullName؟</h2>
+                        <p>@(u.IsActive ? "لن يتمكن من الدخول للنظام." : "سيتمكن من الدخول للنظام.")</p>
+                        <div class="dga-dialog-actions">
+                            <button type="button" class="dga-btn dga-btn--secondary" data-dialog-close>رجوع</button>
+                            <button type="submit" class="dga-btn @(u.IsActive ? "dga-btn--danger" : "dga-btn--primary")">@(u.IsActive ? "تعطيل" : "تفعيل")</button>
+                        </div>
+                    </dialog>
+                </form>
+            }
+        </div>
+    </div>
+
+    <!-- المؤشرات -->
+    <div class="stat-grid">
+        <div class="stat-card">
+            <span class="stat-icon is-neutral"><svg class="ico"><use href="#i-clock" /></svg></span>
+            <span class="stat-label">آخر دخول</span>
+            <span class="stat-value stat-value--text">@(Model.LastLogin.HasValue ? DateDisplay.When(Model.LastLogin.Value) : "لم يدخل بعد")</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon is-info"><svg class="ico"><use href="#i-users" /></svg></span>
+            <span class="stat-label">مرات الدخول</span>
+            <span class="stat-value">@Model.LoginCount</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon @(Model.FailedLogins30Days > 0 ? "is-danger" : "is-neutral")"><svg class="ico"><use href="#i-logout" /></svg></span>
+            <span class="stat-label">محاولات فاشلة (30 يوم)</span>
+            <span class="stat-value">@Model.FailedLogins30Days</span>
+        </div>
+        @if (role == "Technical")
+        {
+            <div class="stat-card">
+                <span class="stat-icon is-success"><svg class="ico"><use href="#i-file" /></svg></span>
+                <span class="stat-label">تقارير معتمدة</span>
+                <span class="stat-value">@Count("approved")</span>
+            </div>
+        }
+        else if (role is "PlotApprover" or "PlanApprover")
+        {
+            <div class="stat-card">
+                <span class="stat-icon is-success"><svg class="ico"><use href="#i-check" /></svg></span>
+                <span class="stat-label">تقارير اعتمدها</span>
+                <span class="stat-value">@Model.ApprovedCount</span>
+            </div>
+        }
+    </div>
+
+    <div class="profile-grid">
+
+        <!-- بيانات الحساب -->
+        <section class="detail-card">
+            <h2>بيانات الحساب</h2>
+            <dl class="kv-grid kv-grid--2">
+                @{
+                    Field("رقم الهوية", u.NationalId);
+                }
+                @{
+                    Field("البريد الإلكتروني", u.Email);
+                }
+                @{
+                    Field("الجوال", u.Phone);
+                }
+                @{
+                    Field("اسم الدخول", u.Username);
+                }
+                @{
+                    Field("تاريخ الإضافة", DateDisplay.Date(u.CreatedAt));
+                }
+            </dl>
+        </section>
+
+        <!-- ملخص العمل حسب الدور -->
+        @if (role == "Technical")
+        {
+            <section class="detail-card">
+                <h2>التقارير</h2>
+                <dl class="kv-grid">
+                    @{
+                        Field("مسودات", Count("draft").ToString());
+                    }
+                    @{
+                        Field("بانتظار الاعتماد", Count("pending").ToString());
+                    }
+                    @{
+                        Field("معادة للتعديل", Count("returned").ToString());
+                    }
+                    @{
+                        Field("معتمدة", Count("approved").ToString());
+                    }
+                </dl>
+            </section>
+        }
+        else if (role is "PlotApprover" or "PlanApprover")
+        {
+            <section class="detail-card">
+                <h2>القرارات</h2>
+                <dl class="kv-grid">
+                    @{
+                        Field("اعتماد", Model.ApprovedCount.ToString());
+                    }
+                    @{
+                        Field("إعادة للتعديل", Model.ReturnedCount.ToString());
+                    }
+                </dl>
+            </section>
+        }
+
+        <!-- التوقيع -->
+        @if (Model.NeedsSignature)
+        {
+            <section class="detail-card">
+                <h2>التوقيع</h2>
+                @if (Model.Signature != null)
+                {
+                    <div class="sig-preview sig-preview--sm">
+                        <img src="@Url.Action("Signature", "Files", new { id = Model.Signature.SignatureId })" alt="توقيع @u.FullName" />
+                    </div>
+                    <p class="sig-note">رُفع في @DateDisplay.Date(Model.Signature.UploadedAt)</p>
+                }
+                else
+                {
+                    <p><span class="badge returned">بانتظار الإضافة</span></p>
+                }
+                <a class="dga-link" asp-controller="Signatures" asp-action="Index">إدارة التواقيع</a>
+            </section>
+        }
+    </div>
+
+    <!-- آخر العمليات -->
+    <section class="dash-section" data-activity>
+        <div class="dash-section-head">
+            <h2>آخر العمليات</h2>
+            <a class="dga-link" asp-controller="AuditLog" asp-action="Index" asp-route-userId="@u.UserId" asp-route-period="all">عرض الكل</a>
+        </div>
+        <partial name="_ActivityTable" model="new ActivityTableModel { Rows = Model.Activity }" />
+    </section>
+
+</div>
+
+@section Scripts {
+    <script src="~/js/activity.js" asp-append-version="true"></script>
+}

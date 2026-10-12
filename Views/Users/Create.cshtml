@@ -2,48 +2,87 @@
 @{
     ViewData["Title"] = "إضافة مستخدم";
     ViewBag.ActivePage = "users";
-    var roles = ViewBag.Roles as List<Role>;
+    var roles = ViewBag.Roles as List<Role> ?? new();
+
+    // بعد خطأ: نرجّع القيم اللي كتبها المدير
+    string F(string name) => Context.Request.HasFormContentType ? Context.Request.Form[name].ToString() : "";
 }
 
-<div class="page-header">
-    <div>
-        <div class="accent-bar"></div>
-        <h1>إضافة مستخدم جديد</h1>
-        <p>يُنشأ الحساب مباشرة بجدول المستخدمين، ويُسجَّل بسجل التدقيق تلقائياً</p>
-    </div>
-</div>
+<div class="dash report-wizard">
 
-@if (!ViewData.ModelState.IsValid)
-{
-    <div class="login-error" style="background:var(--status-returned-bg); color:var(--status-returned-text); padding:10px 14px; border-radius:var(--radius-sm); margin-bottom:16px;">
-        @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors))
-        {
-            <div>@e.ErrorMessage</div>
-        }
-    </div>
-}
+    <nav class="breadcrumb" aria-label="مسار التصفح">
+        <a asp-action="Index">المستخدمون</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">إضافة مستخدم</span>
+    </nav>
 
-<form method="post" asp-action="Create">
-    <div class="form-section">
-        <div class="form-section-body">
-            <div class="form-grid cols-2">
-                <div class="field"><label>الاسم الكامل <span class="req">*</span></label><input type="text" name="fullName" required /></div>
-                <div class="field"><label>اسم المستخدم <span class="req">*</span></label><input type="text" name="username" required /></div>
-                <div class="field"><label>كلمة المرور <span class="req">*</span></label><input type="password" name="password" required /></div>
-                <div class="field">
-                    <label>الدور <span class="req">*</span></label>
-                    <select name="roleId" required>
-                        @foreach (var r in roles!)
-                        {
-                            <option value="@r.RoleId">@r.RoleName</option>
-                        }
-                    </select>
+    <h1 class="dash-title">إضافة مستخدم</h1>
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="dga-alert dga-alert--danger" role="alert">
+            <div>
+                @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                {
+                    <p>@e.ErrorMessage</p>
+                }
+            </div>
+        </div>
+    }
+
+    <form method="post" asp-action="Create">
+        <div class="form-section">
+            <div class="form-section-body">
+                <div class="form-grid cols-2">
+                    <div class="field">
+                        <label for="fullName">الاسم الكامل <span class="req">*</span></label>
+                        <input type="text" id="fullName" name="fullName" value="@F("fullName")" maxlength="200" required />
+                    </div>
+                    <div class="field">
+                        <label for="nationalId">رقم الهوية <span class="req">*</span></label>
+                        <input type="text" id="nationalId" name="nationalId" value="@F("nationalId")" inputmode="numeric" maxlength="10" dir="ltr" autocomplete="off" data-latin-digits required />
+                    </div>
+                    <div class="field">
+                        <label for="email">البريد الإلكتروني</label>
+                        <input type="email" id="email" name="email" value="@F("email")" maxlength="200" dir="ltr" />
+                    </div>
+                    <div class="field">
+                        <label for="phone">الجوال</label>
+                        <input type="tel" id="phone" name="phone" value="@F("phone")" inputmode="tel" maxlength="10" dir="ltr" placeholder="05XXXXXXXX" data-latin-digits />
+                    </div>
+                    <div class="field">
+                        <label for="roleId">الدور <span class="req">*</span></label>
+                        <select id="roleId" name="roleId" required>
+                            <option value="">اختر الدور</option>
+                            @foreach (var r in roles)
+                            {
+                                <option value="@r.RoleId" selected="@(F("roleId") == r.RoleId.ToString())">@r.RoleName</option>
+                            }
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-    <div class="form-footer-bar">
-        <a asp-action="Index" class="btn btn-ghost">إلغاء</a>
-        <button type="submit" class="btn btn-primary">حفظ المستخدم</button>
-    </div>
-</form>
+
+        <div class="form-section">
+            <div class="form-section-header"><div><h4>الدخول</h4><p>مؤقت إلى حين الربط مع نفاذ</p></div></div>
+            <div class="form-section-body">
+                <div class="form-grid cols-2">
+                    <div class="field">
+                        <label for="username">اسم الدخول <span class="req">*</span></label>
+                        <input type="text" id="username" name="username" value="@F("username")" maxlength="100" dir="ltr" autocomplete="off" required />
+                    </div>
+                    <div class="field">
+                        <label for="password">كلمة المرور <span class="req">*</span></label>
+                        <input type="password" id="password" name="password" autocomplete="new-password" dir="ltr" required />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="wizard-nav">
+            <div class="wizard-nav-start"><a asp-action="Index" class="dga-btn dga-btn--ghost">إلغاء</a></div>
+            <div class="wizard-nav-end"><button type="submit" class="dga-btn dga-btn--primary">إضافة</button></div>
+        </div>
+    </form>
+</div>

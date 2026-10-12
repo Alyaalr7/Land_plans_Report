@@ -1,37 +1,57 @@
 ﻿@using Land_plans_Report.Data
+@using Land_plans_Report.Helpers
 @model List<Report>
 @{
-    ViewData["Title"] = "التقارير المعلقة";
+    ViewData["Title"] = "التقارير بانتظار الاعتماد";
     ViewBag.ActivePage = "approval";
+
+    int Days(Report r) => r.SubmittedAt == null ? 0 : (int)(DateTime.Now - r.SubmittedAt.Value).TotalDays;
+    string DaysText(int n) => n <= 0 ? "اليوم" : n == 1 ? "يوم واحد" : n == 2 ? "يومان" : n <= 10 ? $"{n} أيام" : $"{n} يوماً";
+    string DaysTone(int n) => n >= 5 ? "returned" : n >= 3 ? "warning" : "draft";
+    int i = 0;
 }
 
-<div class="page-header">
-    <div>
-        <div class="accent-bar"></div>
-        <h1>التقارير بانتظار اعتمادك</h1>
-        <p>هذي القائمة مفلترة تلقائياً حسب صلاحيتك — لا تظهر إلا الأنواع المخصصة لدورك</p>
-    </div>
-</div>
+<div class="dash">
 
-<div class="card">
-    <div class="table-wrap">
-        <table class="data-table">
-            <thead><tr><th>رقم التقرير</th><th>النوع</th><th>تاريخ الإرسال</th><th>الإجراء</th></tr></thead>
+    <div class="page-head">
+        <h1 class="dash-title">التقارير بانتظار الاعتماد</h1>
+        <span class="page-meta">@Model.Count تقرير</span>
+    </div>
+
+    <div class="dga-table-wrap">
+        <table class="dga-table">
+            <thead>
+                <tr>
+                    <th class="col-num">م</th>
+                    <th>رقم التقرير</th>
+                    <th>النوع</th>
+                    <th>معد التقرير</th>
+                    <th>تاريخ الإرسال</th>
+                    <th>مدة الانتظار</th>
+                    <th>الإجراء</th>
+                </tr>
+            </thead>
             <tbody>
-                @if (!Model.Any())
-                {
-                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">لا توجد تقارير معلقة حالياً</td></tr>
-                }
                 @foreach (var r in Model)
                 {
+                    i++;
+                    var days = Days(r);
                     <tr>
-                        <td>@r.ReportNumber</td>
-                        <td>@r.ReportType</td>
-                        <td>@(r.SubmittedAt?.ToString("dd MMM yyyy") ?? "-")</td>
-                        <td><a class="link-action" asp-action="Review" asp-route-id="@r.ReportId">مراجعة</a></td>
+                        <td class="col-num">@i</td>
+                        <td><a class="dga-link" asp-action="Review" asp-route-id="@r.ReportId"><bdi>@r.ReportNumber</bdi></a></td>
+                        <td>@AuditLabels.ReportType(r.ReportType)</td>
+                        <td>@(r.CreatedByUser?.FullName ?? "—")</td>
+                        <td class="col-time">@(r.SubmittedAt == null ? "—" : DateDisplay.When(r.SubmittedAt.Value))</td>
+                        <td><span class="badge @DaysTone(days)">@DaysText(days)</span></td>
+                        <td><a class="dga-link" asp-action="Review" asp-route-id="@r.ReportId">مراجعة</a></td>
                     </tr>
+                }
+                @if (!Model.Any())
+                {
+                    <tr><td colspan="7" class="dga-table-empty">لا توجد تقارير بانتظار اعتمادك</td></tr>
                 }
             </tbody>
         </table>
     </div>
+
 </div>

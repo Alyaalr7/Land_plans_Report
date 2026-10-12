@@ -1,304 +1,550 @@
 ﻿@using Land_plans_Report.Data
+@using Land_plans_Report.Helpers
 @model Report
 @{
-    Layout = null; // صفحة طباعة مستقلة، بدون القائمة الجانبية أو الهيدر
-    var titles = new Dictionary<string, string> {
-        { "plan", "تقرير الحالة الفنية للمخطط" },
-        { "plot", "تقرير الحالة الفنية لقطعة الأرض" },
-        { "raw", "تقرير الحالة الفنية لأرض خام" },
-        { "unplanned", "تقرير الحالة الفنية لأرض لا يوجد فيها مخطط" },
-    };
+    Layout = null; // صفحة طباعة مستقلة (A4) بنفس ترتيب النموذج الورقي المعتمد
+
     var approval = Model.Approvals.OrderByDescending(a => a.DecisionDate).FirstOrDefault(a => a.Decision == "approve");
+    var approverTitle = approval?.Approver?.Role?.RoleName
+        ?? (Model.ReportType == "plan" ? "مدير عام شؤون الإسكان بالمنطقة" : "مساعد وكيل شؤون الإسكان بالمنطقة");
+    var photos = Model.Photos.Where(p => !SecureFileStorage.IsPdf(p.FilePath)).Take(3).ToList();
+
+    // التوقيع المحفوظ وقت العملية، وإذا ما انحفظ (تقارير قديمة) التوقيع الفعّال الحالي
+    int? preparerSig = Model.PreparerSignatureId ?? ViewBag.PreparerSignatureId as int?;
+    int? approverSig = approval == null ? null : approval.SignatureId ?? ViewBag.ApproverSignatureId as int?;
+    int? stamp = approval == null ? null : approval.StampId ?? ViewBag.StampId as int?;
+
+    string Sig(int? id) => id == null ? "" : Url.Action("Signature", "Files", new { id }) ?? "";
+    string V(object? v) => string.IsNullOrWhiteSpace(v?.ToString()) ? "—" : v!.ToString()!;
+    string U(object? v, string unit) => string.IsNullOrWhiteSpace(v?.ToString()) ? "—" : unit == "%" ? v + "%" : v + " " + unit;
+}
+@functions {
+    // مربع اختيار مثل النموذج الورقي
+    static Microsoft.AspNetCore.Html.IHtmlContent Box(bool on, string text) =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            $"<span class=\"opt\"><i class=\"box{(on ? " on" : "")}\">{(on ? "✓" : "")}</i>{System.Net.WebUtility.HtmlEncode(text)}</span>");
 }
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="utf-8" />
     <title>@Model.ReportNumber</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
-        @@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+        @@page {
+            size: A4;
+            margin: 0;
+        }
+
+        :root {
+            --hd-bg: #1b8354; /* رؤوس الجداول: أخضر كود المنصات */
+            --hd-ink: #ffffff;
+            --brand: #1b8354;
+            --line: #d2d6db;
+            --ink: #0d121c;
+            --muted: #4d5761;
+        }
 
         * {
             box-sizing: border-box;
         }
 
         body {
-            font-family: 'Cairo', sans-serif;
-            direction: rtl;
-            margin: 24px;
-            color: #1e2b26;
-            font-size: 13.5px;
+            margin: 0;
+            background: #f3f4f6;
+            font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+            color: var(--ink);
+            font-size: 13px;
+            line-height: 1.5;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
+
+        .sheet {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 16px auto;
+            padding: 12mm 12mm 10mm;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* الرأس */
+        .doc-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--brand);
+        }
+
+            .doc-head img {
+                height: 20mm;
+                width: auto;
+                max-width: 70mm;
+            }
+
+        .basmala {
+            text-align: center;
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .meta {
+            min-width: 52mm;
+            font-size: 12px;
+        }
+
+            .meta div {
+                display: flex;
+                gap: 8px;
+                padding: 3px 0;
+                border-bottom: 1px dotted #9da4ae;
+            }
+
+            .meta span {
+                color: var(--muted);
+                min-width: 16mm;
+            }
+
+        .doc-title {
+            margin: 18px 0 14px;
+            text-align: center;
+            font-size: 17px;
+            font-weight: 700;
+        }
+
+        /* جدول البيانات: صف عناوين ملوّن + صف قيم */
+        table.grid {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+            table.grid th,
+            table.grid td {
+                border: 1px solid var(--line);
+                padding: 8px 10px;
+                text-align: center;
+                vertical-align: middle;
+            }
+
+            table.grid th {
+                background: var(--hd-bg);
+                color: var(--hd-ink);
+                font-weight: 600;
+                font-size: 13px;
+                padding: 6px 8px;
+            }
+
+            table.grid td {
+                height: 36px;
+                font-size: 14px;
+                font-weight: 500;
+            }
+
+        .opt {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-inline: 8px;
+        }
+
+        .box {
+            width: 13px;
+            height: 13px;
+            border: 1px solid #384250;
+            display: inline-grid;
+            place-content: center;
+            font-style: normal;
+            font-size: 11px;
+            line-height: 1;
+        }
+
+            .box.on {
+                border-color: var(--brand);
+                background: var(--brand);
+                color: #fff;
+                font-weight: 700;
+            }
+
+        /* قسم بعنوان */
+        .block {
+            margin-top: 10px;
+            break-inside: avoid;
+        }
+
+            .block > h3 {
+                margin: 0;
+                padding: 6px 10px;
+                background: var(--hd-bg);
+                color: var(--hd-ink);
+                border: 1px solid var(--line);
+                font-size: 13px;
+                font-weight: 600;
+                text-align: center;
+            }
+
+            .block > .body {
+                border: 1px solid var(--line);
+                border-top: 0;
+                padding: 10px 12px;
+                font-size: 14px;
+                min-height: 34px;
+                white-space: pre-line;
+            }
+
+                .block > .body.split {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    padding: 0;
+                    white-space: normal;
+                }
+
+                    .block > .body.split > div {
+                        padding: 8px 10px;
+                    }
+
+                        .block > .body.split > div + div {
+                            border-inline-start: 1px solid var(--line);
+                        }
+
+        .photos {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            padding: 6px;
+            border: 1px solid var(--line);
+            border-top: 0;
+        }
+
+            .photos img {
+                width: 100%;
+                height: 50mm;
+                object-fit: cover;
+                display: block;
+            }
+
+        /* التذييل: معد التقرير | الختم | الاعتماد */
+        .sign {
+            margin-top: auto;
+            padding-top: 12px;
+            break-inside: avoid;
+        }
+
+            .sign table.grid td {
+                height: auto;
+                text-align: start;
+                vertical-align: top;
+            }
+
+            .sign .line {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                min-height: 9mm;
+                padding: 2px 0;
+                font-size: 14px;
+                font-weight: 500;
+            }
+
+                .sign .line span {
+                    color: var(--muted);
+                    font-weight: 400;
+                }
+
+            .sign .sig-img {
+                height: 14mm;
+                max-width: 40mm;
+                object-fit: contain;
+            }
+
+            .sign td.stamp {
+                text-align: center;
+                vertical-align: middle;
+            }
+
+            .sign .stamp img {
+                height: 32mm;
+                max-width: 45mm;
+                object-fit: contain;
+            }
 
         .print-btn {
             position: fixed;
             top: 16px;
             left: 16px;
-            padding: 10px 18px;
-            background: #1a5f4a;
+            height: 40px;
+            padding: 0 16px;
+            border: 0;
+            border-radius: 4px;
+            background: #1b8354;
             color: #fff;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
             font-family: inherit;
-            font-size: 13px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+            .print-btn:hover {
+                background: #166a45;
+            }
+
+        /* ===== تنسيق الفورم: إطار أخضر لكل جدول وقسم، وعلامة مائية ===== */
+        .sheet {
+            position: relative;
+        }
+
+        .watermark {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+            .watermark img {
+                width: 120mm;
+                opacity: .05;
+            }
+
+        .sheet > *:not(.watermark) {
+            position: relative;
+            z-index: 1;
+        }
+
+        .doc-title::after {
+            content: "";
+            display: block;
+            width: 56px;
+            height: 3px;
+            margin: 8px auto 0;
+            border-radius: 2px;
+            background: var(--brand);
+        }
+
+        table.grid {
+            border-collapse: separate;
+            border-spacing: 0;
+            border: 1.5px solid var(--brand);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+            table.grid th,
+            table.grid td {
+                border: 0;
+                border-inline-start: 1px solid var(--line);
+                border-top: 1px solid var(--line);
+            }
+
+            table.grid th {
+                border-color: rgba(255, 255, 255, .25);
+            }
+
+            table.grid tr:first-child > * {
+                border-top: 0;
+            }
+
+            table.grid tr > *:first-child {
+                border-inline-start: 0;
+            }
+
+        .block > h3 {
+            border: 1.5px solid var(--brand);
+            border-bottom: 0;
+            border-radius: 6px 6px 0 0;
+        }
+
+        .block > .body {
+            border: 1.5px solid var(--brand);
+            border-top: 0;
+        }
+
+            .block > .body:last-child {
+                border-radius: 0 0 6px 6px;
+            }
+
+        .block > .photos {
+            border: 1.5px solid var(--brand);
+            border-top: 1px solid var(--line);
+            border-radius: 0 0 6px 6px;
         }
 
         @@media print {
+            body {
+                background: #fff;
+            }
+
+            .sheet {
+                margin: 0;
+            }
+
             .print-btn {
                 display: none;
             }
-
-            body {
-                margin: 0;
-            }
-        }
-
-        .doc-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 2px solid #1a5f4a;
-            padding-bottom: 12px;
-            margin-bottom: 4px;
-        }
-
-            .doc-header .meta-box {
-                border: 1px solid #999;
-                font-size: 11px;
-                padding: 4px 10px;
-            }
-
-                .doc-header .meta-box div {
-                    padding: 2px 0;
-                    border-bottom: 1px dotted #ccc;
-                }
-
-            .doc-header .brand {
-                text-align: left;
-            }
-
-                .doc-header .brand strong {
-                    display: block;
-                    font-size: 14px;
-                    color: #1a5f4a;
-                }
-
-        .doc-title {
-            text-align: center;
-            font-size: 16px;
-            font-weight: 800;
-            background: #eef3f0;
-            padding: 8px;
-            margin: 10px 0 16px;
-            border-radius: 4px;
-        }
-
-        table.doc-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 14px;
-        }
-
-            table.doc-table th {
-                background: #2d7a5f;
-                color: #fff;
-                padding: 8px;
-                font-size: 12px;
-                border: 1px solid #1a5f4a;
-                width: 33.33%;
-            }
-
-            table.doc-table td {
-                padding: 8px;
-                border: 1px solid #cfd8d4;
-                text-align: center;
-                font-size: 13px;
-                background: #fafcfb;
-            }
-
-        .section-title {
-            background: #2d7a5f;
-            color: #fff;
-            padding: 6px 12px;
-            font-size: 12.5px;
-            font-weight: 700;
-            border-radius: 4px 4px 0 0;
-        }
-
-        .section-body {
-            border: 1px solid #cfd8d4;
-            border-top: none;
-            padding: 10px 14px;
-            margin-bottom: 14px;
-            border-radius: 0 0 4px 4px;
-            min-height: 30px;
-        }
-
-        .photos-row {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 14px;
-        }
-
-            .photos-row img {
-                width: 33%;
-                height: 130px;
-                object-fit: cover;
-                border: 1px solid #cfd8d4;
-                border-radius: 4px;
-            }
-
-        .footer-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            border: 1px solid #1a5f4a;
-            margin-top: 18px;
-        }
-
-            .footer-row > div {
-                padding: 12px;
-                border-inline-start: 1px solid #1a5f4a;
-                text-align: center;
-            }
-
-                .footer-row > div:first-child {
-                    border-inline-start: none;
-                }
-
-            .footer-row .label {
-                background: #2d7a5f;
-                color: #fff;
-                font-size: 11.5px;
-                padding: 6px;
-                margin: -12px -12px 10px;
-            }
-
-        .stamp-placeholder {
-            width: 90px;
-            height: 90px;
-            margin: 6px auto;
-            border: 2px dashed #2d7a5f;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 10px;
-            color: #2d7a5f;
-            text-align: center;
         }
     </style>
 </head>
 <body>
-    <button class="print-btn" onclick="window.print()">🖨️ طباعة / حفظ كـ PDF</button>
+    <button type="button" class="print-btn" onclick="window.print()">طباعة / حفظ PDF</button>
 
-    <div class="doc-header">
-        <div class="meta-box">
-            <div>الرقم: @Model.ReportNumber</div>
-            <div>التاريخ: @Model.CreatedAt.ToString("dd/MM/yyyy")</div>
-            <div>المرفقات: @Model.Photos.Count</div>
-        </div>
-        <div class="brand">
-            <strong>أمانة منطقة المدينة المنورة</strong>
-            <span style="font-size:11px; color:#666;">وكالة شؤون الإسكان</span>
-        </div>
-    </div>
+    <div class="sheet">
 
-    <div class="doc-title">@titles[Model.ReportType]</div>
+        <div class="watermark" aria-hidden="true"><img src="~/Images\logo.svg" alt="" /></div>
 
-    @if (Model.PlanDetails != null)
-    {
-        var d = Model.PlanDetails;
-        <table class="doc-table">
-            <thead><tr><th>المساحة (م²)</th><th>اسم المخطط</th><th>كود المخطط</th></tr></thead>
-            <tbody><tr><td>@d.Area</td><td>@d.PlanName</td><td>@d.PlanCode</td></tr></tbody>
-        </table>
-        <table class="doc-table">
-            <thead><tr><th>المركز/القرية</th><th>المحافظة</th><th>المنطقة</th></tr></thead>
-            <tbody><tr><td>@d.CenterOrVillage</td><td>@d.Governorate</td><td>@d.Region</td></tr></tbody>
-        </table>
-        <table class="doc-table">
-            <thead><tr><th>عدد القطع</th><th>حالة الإسفلت</th><th>حالة الكهرباء</th></tr></thead>
-            <tbody><tr><td>@d.PlotCount</td><td>@d.AsphaltStatus</td><td>@d.ElectricityStatus</td></tr></tbody>
-        </table>
-        <div class="section-title">الملاحظات والتوصيات</div>
-        <div class="section-body">@d.UrbanCondition &nbsp; @Model.Notes</div>
-    }
-    else if (Model.PlotDetails != null)
-    {
-        var d = Model.PlotDetails;
-        <table class="doc-table">
-            <thead><tr><th>رقم الجوال</th><th>رقم الهوية الوطنية</th><th>اسم المستفيد</th></tr></thead>
-            <tbody><tr><td>@d.BeneficiaryPhone</td><td>@d.BeneficiaryNationalId</td><td>@d.BeneficiaryName</td></tr></tbody>
-        </table>
-        <table class="doc-table">
-            <thead><tr><th>اسم المخطط</th><th>المحافظة</th><th>المنطقة</th></tr></thead>
-            <tbody><tr><td>@d.PlanName</td><td>@d.Governorate</td><td>@d.Region</td></tr></tbody>
-        </table>
-        <table class="doc-table">
-            <thead><tr><th>رقم القطعة</th><th>—</th><th>كود المخطط</th></tr></thead>
-            <tbody><tr><td>@d.PlotNumber</td><td>—</td><td>@d.PlanCode</td></tr></tbody>
-        </table>
-        <div class="section-title">الحالة الفنية للقطعة</div>
-        <div class="section-body">@d.PlotCondition</div>
-        <div class="section-title">التوصية</div>
-        <div class="section-body">@d.Recommendation</div>
-    }
-    else if (Model.RawLandDetails != null)
-    {
-        var d = Model.RawLandDetails;
-        <table class="doc-table">
-            <thead><tr><th>المساحة (م²)</th><th>اسم المخطط</th><th>كود المخطط</th></tr></thead>
-            <tbody><tr><td>@d.Area</td><td>@d.PlanName</td><td>@d.PlanCode</td></tr></tbody>
-        </table>
-        <table class="doc-table">
-            <thead><tr><th>المركز/القرية</th><th>المحافظة</th><th>المنطقة</th></tr></thead>
-            <tbody><tr><td>@d.CenterOrVillage</td><td>@d.Governorate</td><td>@d.Region</td></tr></tbody>
-        </table>
-        <div class="section-title">الحالة الفنية والمعاينة</div>
-        <div class="section-body">حالة الإسفلت: @d.AsphaltStatus — الكهرباء: @d.ElectricityStatus — العمران: @d.UrbanCondition</div>
-    }
-    else if (Model.UnplannedLandDetails != null)
-    {
-        var d = Model.UnplannedLandDetails;
-        <table class="doc-table">
-            <thead><tr><th>المساحة (م²)</th><th>اسم المخطط الوصفي</th><th>كود المخطط الوصفي</th></tr></thead>
-            <tbody><tr><td>@d.Area</td><td>@d.PlanName</td><td>@d.PlanCode</td></tr></tbody>
-        </table>
-        <table class="doc-table">
-            <thead><tr><th>المركز/القرية</th><th>المحافظة</th><th>المنطقة</th></tr></thead>
-            <tbody><tr><td>@d.CenterOrVillage</td><td>@d.Governorate</td><td>@d.Region</td></tr></tbody>
-        </table>
-        <div class="section-title">الحالة الفنية والمعاينة</div>
-        <div class="section-body">داخل حد التنمية: @(d.InsideDevelopmentBoundary == true ? "نعم" : "لا") — الإسفلت: @d.AsphaltStatus — الكهرباء: @d.ElectricityStatus</div>
-    }
+        <div class="basmala">بسم الله الرحمن الرحيم</div>
 
-    @if (Model.Photos.Any())
-    {
-        <div class="section-title">صور الموقع</div>
-        <div class="photos-row" style="border:1px solid #cfd8d4; border-top:none; padding:10px;">
-            @foreach (var p in Model.Photos.Take(3))
+        <header class="doc-head">
+            <img src="~/Images\logo.svg" alt="وزارة البلديات والإسكان" />
+            <div class="meta">
+                <div><span>الرقم</span><bdi>@Model.ReportNumber</bdi></div>
+                <div><span>التاريخ</span>@ReportLabels.Hijri(Model.SubmittedAt ?? Model.CreatedAt)</div>
+                <div><span>المرفقات</span>@Model.Photos.Count</div>
+            </div>
+        </header>
+
+        <h1 class="doc-title">@ReportLabels.Title(Model.ReportType)</h1>
+
+        @if (Model.PlanDetails != null)
+        {
+            var d = Model.PlanDetails;
+            <table class="grid">
+                <tr><th>كود المخطط</th><th>اسم المخطط</th><th>المساحة (م²)</th></tr>
+                <tr><td><bdi>@V(d.PlanCode)</bdi></td><td>@V(d.PlanName)</td><td>@V(ReportLabels.Number(d.Area))</td></tr>
+                <tr><th>المنطقة</th><th>المحافظة</th><th>المركز / القرية</th></tr>
+                <tr><td>@V(d.Region)</td><td>@V(d.Governorate)</td><td>@V(d.CenterOrVillage)</td></tr>
+                <tr><th>عدد القطع</th><th colspan="2">حالة الإسفلت</th></tr>
+                <tr>
+                    <td>@V(d.PlotCount)</td>
+                    <td colspan="2">@Box(d.AsphaltStatus == Options.Exists, "يوجد") @Box(d.AsphaltStatus == Options.NotExists, "لا يوجد") @Box(d.AsphaltStatus == Options.Partial, "جزئي")</td>
+                </tr>
+                <tr><th>حالة الكهرباء</th><th>حالة العمران</th><th>البعد عن المركز / القرية</th></tr>
+                <tr>
+                    <td>@Box(d.ElectricityStatus == Options.Exists, "يوجد") @Box(d.ElectricityStatus == Options.NotExists, "لا يوجد")</td>
+                    <td><bdi>@U(d.UrbanCondition, "%")</bdi></td>
+                    <td>@U(ReportLabels.Number(d.DistanceFromCenter), "كم")</td>
+                </tr>
+                <tr><th colspan="3">شبكة المياه والصرف</th></tr>
+                <tr><td colspan="3">@Box(d.WaterDrainage == Options.Yes, "يوجد") @Box(d.WaterDrainage == Options.No, "لا يوجد")</td></tr>
+            </table>
+        }
+        else if (Model.PlotDetails != null)
+        {
+            var d = Model.PlotDetails;
+            <table class="grid">
+                <tr><th>اسم المستفيد</th><th>رقم الهوية الوطنية</th><th>رقم الجوال</th></tr>
+                <tr><td>@V(d.BeneficiaryName)</td><td><bdi>@V(d.BeneficiaryNationalId)</bdi></td><td><bdi>@V(d.BeneficiaryPhone)</bdi></td></tr>
+                <tr><th>المنطقة</th><th>المحافظة / المدينة</th><th>اسم المخطط</th></tr>
+                <tr><td>@V(d.Region)</td><td>@V(d.Governorate)</td><td>@V(d.PlanName)</td></tr>
+                <tr><th>كود المخطط</th><th colspan="2">رقم القطعة</th></tr>
+                <tr><td><bdi>@V(d.PlanCode)</bdi></td><td colspan="2"><bdi>@V(d.PlotNumber)</bdi></td></tr>
+            </table>
+
+            <section class="block">
+                <h3>الحالة الفنية للقطعة</h3>
+                <div class="body">@(d.PlotCondition == Options.Incomplete ? "مبنى غير مكتمل البناء" : d.PlotCondition == Options.Complete ? "مبنى مكتمل البناء" : V(ReportLabels.Option(d.PlotCondition)))@(string.IsNullOrWhiteSpace(d.IncompleteNotes) ? "" : " — " + d.IncompleteNotes)</div>
+            </section>
+
+            <section class="block">
+                <h3>التوصية</h3>
+                <div class="body split">
+                    <div>@Box(d.Recommendation == Options.Suitable, "القطعة صالحة للبناء")</div>
+                    <div>@Box(d.Recommendation == Options.NotSuitable, "القطعة غير صالحة للبناء")@(string.IsNullOrWhiteSpace(d.NotSuitableNotes) ? "" : " — " + d.NotSuitableNotes)</div>
+                </div>
+            </section>
+        }
+        else if (Model.RawLandDetails != null)
+        {
+            var d = Model.RawLandDetails;
+            <table class="grid">
+                <tr><th>كود المخطط</th><th>اسم المخطط</th><th>المساحة (م²)</th></tr>
+                <tr><td><bdi>@V(d.PlanCode)</bdi></td><td>@V(d.PlanName)</td><td>@V(ReportLabels.Number(d.Area))</td></tr>
+                <tr><th>المنطقة</th><th>المحافظة</th><th>المركز / القرية</th></tr>
+                <tr><td>@V(d.Region)</td><td>@V(d.Governorate)</td><td>@V(d.CenterOrVillage)</td></tr>
+                <tr><th>يوجد مخطط معتمد</th><th colspan="2">حالة الإسفلت</th></tr>
+                <tr>
+                    <td>@Box(d.HasApprovedPlan == true, "نعم") @Box(d.HasApprovedPlan == false, "لا")</td>
+                    <td colspan="2">@Box(d.AsphaltStatus == Options.Exists, "يوجد") @Box(d.AsphaltStatus == Options.NotExists, "لا يوجد") @Box(d.AsphaltStatus == Options.Partial, "جزئي")</td>
+                </tr>
+                <tr><th>حالة الكهرباء</th><th>حالة العمران</th><th>البعد عن المركز / القرية</th></tr>
+                <tr>
+                    <td>@Box(d.ElectricityStatus == Options.Exists, "يوجد") @Box(d.ElectricityStatus == Options.NotExists, "لا يوجد")</td>
+                    <td><bdi>@U(d.UrbanCondition, "%")</bdi></td>
+                    <td>@U(ReportLabels.Number(d.DistanceFromCenter), "كم")</td>
+                </tr>
+            </table>
+        }
+        else if (Model.UnplannedLandDetails != null)
+        {
+            var d = Model.UnplannedLandDetails;
+            <table class="grid">
+                <tr><th>كود المخطط الوصفي</th><th>اسم المخطط الوصفي</th><th>المساحة (م²)</th></tr>
+                <tr><td><bdi>@V(d.PlanCode)</bdi></td><td>@V(d.PlanName)</td><td>@V(ReportLabels.Number(d.Area))</td></tr>
+                <tr><th>المنطقة</th><th>المحافظة</th><th>المركز / القرية</th></tr>
+                <tr><td>@V(d.Region)</td><td>@V(d.Governorate)</td><td>@V(d.CenterOrVillage)</td></tr>
+                <tr><th>داخل حد التنمية</th><th colspan="2">حالة الإسفلت</th></tr>
+                <tr>
+                    <td>@Box(d.InsideDevelopmentBoundary == true, "نعم") @Box(d.InsideDevelopmentBoundary == false, "لا")</td>
+                    <td colspan="2">@Box(d.AsphaltStatus == Options.Exists, "يوجد") @Box(d.AsphaltStatus == Options.NotExists, "لا يوجد") @Box(d.AsphaltStatus == Options.Partial, "جزئي")</td>
+                </tr>
+                <tr><th>حالة الكهرباء</th><th>حالة العمران</th><th>البعد عن المركز / القرية</th></tr>
+                <tr>
+                    <td>@Box(d.ElectricityStatus == Options.Exists, "يوجد") @Box(d.ElectricityStatus == Options.NotExists, "لا يوجد")</td>
+                    <td><bdi>@U(d.UrbanCondition, "%")</bdi></td>
+                    <td>@U(ReportLabels.Number(d.DistanceFromCenter), "كم")</td>
+                </tr>
+            </table>
+        }
+
+        <section class="block">
+            <h3>الملاحظات والتوصيات</h3>
+            <div class="body">@V(Model.Notes)</div>
+            @if (photos.Any())
             {
-                <img src="@p.FilePath" />
+                <div class="photos">
+                    @foreach (var p in photos)
+                    {
+                        <img src="@Url.Action("Photo", "Files", new { id = p.PhotoId })" alt="صورة الموقع" />
+                    }
+                </div>
             }
-        </div>
-    }
+        </section>
 
-    <div class="footer-row">
-        <div>
-            <div class="label">اعتماد @(Model.ReportType == "plan" ? "مدير عام شؤون الإسكان" : "مساعد وكيل شؤون الإسكان")</div>
-            <div>الاسم: @(approval != null ? "معتمد" : "—")</div>
-            <div>التاريخ: @(approval?.DecisionDate.ToString("dd/MM/yyyy") ?? "—")</div>
+        <div class="sign">
+            <table class="grid">
+                <tr><th>معد التقرير</th><th>الختم</th><th>اعتماد @approverTitle</th></tr>
+                <tr>
+                    <td>
+                        <div class="line"><span>الاسم/</span>@(Model.CreatedByUser?.FullName)</div>
+                        <div class="line"><span>التوقيع/</span>@if (preparerSig != null)
+                            {
+                                <img class="sig-img" src="@Sig(preparerSig)" alt="توقيع معد التقرير" />
+                            }</div>
+                        <div class="line"><span>التاريخ/</span>@ReportLabels.Hijri(Model.SubmittedAt ?? Model.CreatedAt)</div>
+                    </td>
+                    <td class="stamp">
+                        @if (stamp != null)
+                        {
+                            <img src="@Sig(stamp)" alt="ختم الجهة" />
+                        }
+                    </td>
+                    <td>
+                        <div class="line"><span>الاسم/</span>@(approval?.Approver?.FullName)</div>
+                        <div class="line"><span>التوقيع/</span>@if (approverSig != null)
+                            {
+                                <img class="sig-img" src="@Sig(approverSig)" alt="توقيع المعتمد" />
+                            }</div>
+                        <div class="line"><span>التاريخ/</span>@ReportLabels.Hijri(approval?.DecisionDate)</div>
+                    </td>
+                </tr>
+            </table>
         </div>
-        <div>
-            <div class="label">الختم</div>
-            <div class="stamp-placeholder">أمانة منطقة<br />المدينة المنورة</div>
-        </div>
-        <div>
-            <div class="label">معد التقرير</div>
-            <div>الاسم: —</div>
-            <div>التاريخ: @Model.CreatedAt.ToString("dd/MM/yyyy")</div>
-        </div>
+
     </div>
 </body>
 </html>

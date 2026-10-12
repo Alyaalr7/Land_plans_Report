@@ -1,56 +1,90 @@
-﻿@using Land_plans_Report.Data
-@model List<AuditLogEntry>
+﻿@using Land_plans_Report.Models
+@model AuditLogViewModel
 @{
     ViewData["Title"] = "سجل التدقيق";
     ViewBag.ActivePage = "audit";
-    string role = ViewBag.UserRole ?? "Technical";
-    var userNames = ViewBag.UserNames as Dictionary<int, string>;
-    var reportNumbers = ViewBag.ReportNumbers as Dictionary<int, string>;
-
-    var subtitle = role switch
-    {
-        "Admin" => "كل العمليات الإدارية والنظامية — باستثناء تفاصيل المسودات الخاصة بغيرك",
-        "Technical" => "العمليات المرتبطة بتقاريرك أنت فقط: الإرسال، الرد عليها، والاعتماد النهائي",
-        _ => "قراراتك أنت فقط: الاعتمادات والإعادات التي اتخذتها"
-    };
 }
 
-<div class="page-header">
-    <div>
-        <div class="accent-bar"></div>
-        <h1>سجل التدقيق</h1>
-        <p>@subtitle</p>
+<div class="dash">
+
+    <h1 class="dash-title">سجل التدقيق</h1>
+
+    <div class="stat-grid">
+        <div class="stat-card">
+            <span class="stat-icon is-neutral"><svg class="ico"><use href="#i-clock" /></svg></span>
+            <span class="stat-label">عمليات اليوم</span>
+            <span class="stat-value">@Model.TodayCount</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon is-info"><svg class="ico"><use href="#i-file" /></svg></span>
+            <span class="stat-label">تقارير أُرسلت (7 أيام)</span>
+            <span class="stat-value">@Model.SubmittedWeek</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon is-success"><svg class="ico"><use href="#i-check" /></svg></span>
+            <span class="stat-label">قرارات اعتماد (7 أيام)</span>
+            <span class="stat-value">@Model.DecisionsWeek</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-icon @(Model.FailedLoginsWeek > 0 ? "is-danger" : "is-neutral")"><svg class="ico"><use href="#i-logout" /></svg></span>
+            <span class="stat-label">دخول فاشل (7 أيام)</span>
+            <span class="stat-value">@Model.FailedLoginsWeek</span>
+        </div>
     </div>
+
+    <section class="dash-section" data-activity>
+
+        @* المستخدم والفترة من السيرفر — البحث والعلامات فورية *@
+        <form method="get" asp-action="Index" class="filter-bar" role="search" data-auto-submit>
+            <div class="search-field">
+                <svg class="ico" aria-hidden="true"><use href="#i-search" /></svg>
+                <input type="search" placeholder="ابحث برقم التقرير أو الاسم أو التفاصيل" aria-label="البحث" autocomplete="off" data-activity-search />
+            </div>
+            <select name="userId" class="dga-select" aria-label="المستخدم">
+                <option value="">كل المستخدمين</option>
+                @foreach (var u in Model.Users)
+                {
+                    <option value="@u.Id" selected="@(u.Id == Model.UserId)">@u.Name</option>
+                }
+            </select>
+            <select name="period" class="dga-select" aria-label="الفترة">
+                <option value="today" selected="@(Model.Period == "today")">اليوم</option>
+                <option value="7" selected="@(Model.Period == "7")">آخر 7 أيام</option>
+                <option value="30" selected="@(Model.Period == "30")">آخر 30 يوم</option>
+                <option value="all" selected="@(Model.Period == "all")">الكل</option>
+            </select>
+        </form>
+
+        @if (Model.UserName != null)
+        {
+            <div class="active-filter">
+                <span class="chip chip--removable" aria-pressed="true">
+                    المستخدم: @Model.UserName
+                    <a asp-action="Index" asp-route-period="@Model.Period" aria-label="إزالة فلتر المستخدم">✕</a>
+                </span>
+            </div>
+        }
+
+        <partial name="_ActivityTable" model="new ActivityTableModel { Rows = Model.Rows, ShowUser = true }" />
+
+        @if (Model.Truncated)
+        {
+            <p class="sig-note">يُعرض آخر @Model.Rows.Count عملية — استخدم الفلاتر لتضييق النتائج.</p>
+        }
+    </section>
+
 </div>
 
-<div class="card">
-    <div class="table-wrap">
-        <table class="data-table">
-            <thead><tr><th>م</th><th>رقم التقرير</th><th>العملية</th>@(role == "Admin" ? "<th>المستخدم</th>" : "")<th>التفاصيل</th><th>التاريخ والوقت</th></tr></thead>
-            <tbody>
-                @if (!Model.Any())
-                {
-                    <tr><td colspan="6" style="text-align:center; color:var(--text-muted);">لا توجد عمليات مسجلة تخصك حالياً</td></tr>
-                }
-                @{
-                    int i = 1;
-                }
-                @foreach (var e in Model)
-                {
-                    <tr>
-                        <td>@i</td>
-                        <td>@(e.ReportId.HasValue && reportNumbers != null && reportNumbers.ContainsKey(e.ReportId.Value) ? reportNumbers[e.ReportId.Value] : "—")</td>
-                        <td>@(e.ActionType switch { "Submit" => "إرسال", "Approve" => "اعتماد", "Return" => "إعادة للتعديل", "Create" => "إنشاء", "UserAdded" => "إضافة مستخدم", "StampUpdated" => "تحديث ختم", _ => e.ActionType })</td>
-                        @if (role == "Admin")
-                        {
-                            <td>@(userNames != null && userNames.ContainsKey(e.UserId) ? userNames[e.UserId] : "—")</td>
-                        }
-                        <td>@e.ActionDetails</td>
-                        <td>@e.ActionDate.ToString("dd MMM yyyy · hh:mm tt")</td>
-                    </tr>
-                    i++;
-                }
-            </tbody>
-        </table>
-    </div>
-</div>
+@section Scripts {
+    <script src="~/js/activity.js" asp-append-version="true"></script>
+    <script>
+        // تغيير المستخدم أو الفترة يحدّث الصفحة مباشرة
+        document.querySelectorAll('[data-auto-submit] select').forEach(function (s) {
+            s.addEventListener('change', function () { s.form.submit(); });
+        });
+        // Enter في البحث ما يرسل الفورم (البحث فوري)
+        document.querySelector('[data-activity-search]').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') e.preventDefault();
+        });
+    </script>
+}

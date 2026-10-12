@@ -66,8 +66,8 @@ namespace Land_plans_Report.Controllers
                 .Include(r => r.RawLandDetails)
                 .Include(r => r.UnplannedLandDetails)
                 .Include(r => r.Photos)
-                .Include(r => r.Approvals)
-                .FirstOrDefaultAsync(r => r.ReportId == id);
+                .Include(r => r.CreatedByUser)
+                .Include(r => r.Approvals).ThenInclude(a => a.Approver).ThenInclude(u => u!.Role).FirstOrDefaultAsync(r => r.ReportId == id);
 
             if (report == null) return NotFound();
 
@@ -80,6 +80,21 @@ namespace Land_plans_Report.Controllers
                 || (roleCode == "PlanApprover" && report.ReportType == "plan");
 
             if (!allowed) return RedirectToAction("Login", "Account");
+            // للتقارير اللي ما انحفظ فيها التوقيع وقت العملية: نعرض التوقيع الفعّال الحالي
+            ViewBag.PreparerSignatureId = await _db.Signatures
+                .Where(s => s.Kind == SignatureKinds.Signature && s.IsActive && s.UserId == report.CreatedByUserId)
+                .Select(s => (int?)s.SignatureId).FirstOrDefaultAsync();
+
+            var lastApproval = report.Approvals.Where(a => a.Decision == "approve").OrderByDescending(a => a.DecisionDate).FirstOrDefault();
+            if (lastApproval != null)
+            {
+                ViewBag.ApproverSignatureId = await _db.Signatures
+                    .Where(s => s.Kind == SignatureKinds.Signature && s.IsActive && s.UserId == lastApproval.ApproverUserId)
+                    .Select(s => (int?)s.SignatureId).FirstOrDefaultAsync();
+                ViewBag.StampId = await _db.Signatures
+                    .Where(s => s.Kind == SignatureKinds.Stamp && s.IsActive)
+                    .Select(s => (int?)s.SignatureId).FirstOrDefaultAsync();
+            }
 
             return View(report);
         }
@@ -240,19 +255,15 @@ namespace Land_plans_Report.Controllers
                     return View(vm);
                 }
 
-                var uploadsRoot = Path.Combine(_env.WebRootPath, "uploads", report.ReportNumber);
-                Directory.CreateDirectory(uploadsRoot);
-
                 foreach (var file in validPhotos)
                 {
-                    var safeName = $"{Guid.NewGuid()}_{Path.GetFileName(file.FileName)}";
-                    using (var stream = new FileStream(Path.Combine(uploadsRoot, safeName), FileMode.Create))
-                        await file.CopyToAsync(stream);
+                    // التخزين خارج wwwroot باسم عشوائي (التفاصيل في SecureFileStorage)
+                    var storedPath = await SecureFileStorage.SaveAsync(_env, file, $"reports/{report.ReportNumber}");
 
                     _db.ReportPhotos.Add(new ReportPhoto
                     {
                         ReportId = report.ReportId,
-                        FilePath = $"/uploads/{report.ReportNumber}/{safeName}",
+                        FilePath = storedPath,
                         FileSizeKB = (int)(file.Length / 1024),
                         UploadedAt = DateTime.Now
                     });
@@ -406,18 +417,14 @@ namespace Land_plans_Report.Controllers
             // ── الصور (نفس Create) ──
             if (validPhotos.Count > 0)
             {
-                var uploadsRoot = Path.Combine(_env.WebRootPath, "uploads", report.ReportNumber);
-                Directory.CreateDirectory(uploadsRoot);
                 foreach (var file in validPhotos)
                 {
-                    var safeName = $"{Guid.NewGuid()}_{Path.GetFileName(file.FileName)}";
-                    using (var stream = new FileStream(Path.Combine(uploadsRoot, safeName), FileMode.Create))
-                        await file.CopyToAsync(stream);
+                    var storedPath = await SecureFileStorage.SaveAsync(_env, file, $"reports/{report.ReportNumber}");
 
                     _db.ReportPhotos.Add(new ReportPhoto
                     {
                         ReportId = report.ReportId,
-                        FilePath = $"/uploads/{report.ReportNumber}/{safeName}",
+                        FilePath = storedPath,
                         FileSizeKB = (int)(file.Length / 1024),
                         UploadedAt = DateTime.Now
                     });
@@ -510,10 +517,7 @@ namespace Land_plans_Report.Controllers
             _ => ""
         };
         //---------------------------------------------------------------------------------------------------
-        // ⚠️ إصلاح ثغرة حقيقية: كانت الواجهة تدّعي "JPG/PNG/PDF بحد 10 ميجا" بدون أي تحقق فعلي
-        // بالسيرفر. الحين يُرفض أي امتداد غير مسموح أو أي ملف أكبر من الحد فعلياً.
-        private static readonly HashSet<string> AllowedPhotoExtensions = new() { ".jpg", ".jpeg", ".png", ".pdf" };
-        private const long MaxPhotoSizeBytes = 10 * 1024 * 1024; // 10 ميجابايت
+        // فحص الصور: العدد هنا، والنوع الحقيقي والحجم في SecureFileStorage.Validate
         private const int MaxPhotoCount = 3;
         private (List<IFormFile> valid, string? error) ValidateAndPreparePhotos(List<IFormFile> photos)
         {
@@ -522,11 +526,8 @@ namespace Land_plans_Report.Controllers
                 return (valid, $"الحد الأقصى {MaxPhotoCount} ملفات.");
             foreach (var file in photos.Where(f => f.Length > 0))
             {
-                var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-                if (!AllowedPhotoExtensions.Contains(ext))
-                    return (valid, $"الملف \"{file.FileName}\" بصيغة غير مسموحة. الصيغ المقبولة: JPG, JPEG, PNG, PDF فقط.");
-                if (file.Length > MaxPhotoSizeBytes)
-                    return (valid, $"الملف \"{file.FileName}\" حجمه أكبر من 10 ميجابايت.");
+                var error = SecureFileStorage.Validate(file);
+                if (error != null) return (valid, error);
                 valid.Add(file);
             }
             return (valid, null);

@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Land_plans_Report.Data;
+using Land_plans_Report.Helpers;
 using Microsoft.EntityFrameworkCore;
 namespace Land_plans_Report.Controllers
 {
@@ -20,7 +21,7 @@ namespace Land_plans_Report.Controllers
 
             ViewBag.UserRole = "Approver";
 
-            var query = _db.Reports.Where(r => r.Status == "pending");
+            var query = _db.Reports.Include(r => r.CreatedByUser).Where(r => r.Status == "pending");
 
             // ⚠️ إعادة هيكلة: أنواع التقارير المسموحة تُقرأ من ReportTypeApprovalRoles
             // (بيانات) بدل شرط if/else مكتوب بالكود — مدير النظام يقدر يضيف/يغيّر
@@ -50,6 +51,7 @@ namespace Land_plans_Report.Controllers
                 .Include(r => r.RawLandDetails)
                 .Include(r => r.UnplannedLandDetails)
                 .Include(r => r.Photos)
+                .Include(r => r.CreatedByUser)
                 .FirstOrDefaultAsync(r => r.ReportId == id);
 
             if (report == null) return NotFound();
@@ -63,6 +65,10 @@ namespace Land_plans_Report.Controllers
                 return RedirectToAction("Details", "Reports", new { id = report.ReportId });
 
             ViewBag.UserRole = "Approver";
+
+            // معاينة توقيعي والختم قبل الاعتماد
+            ViewBag.MySignatureId = await ActiveSignatureIdAsync(userId.Value);
+            ViewBag.StampId = await ActiveStampIdAsync();
             return View(report);
         }
 
@@ -97,13 +103,30 @@ namespace Land_plans_Report.Controllers
                 return RedirectToAction("Review", new { id = reportId });
             }
 
+            // الاعتماد يحتاج توقيع المعتمد وختم الجهة (الإعادة ما تحتاجهم)
+            int? signatureId = null, stampId = null;
+            if (decision == "approve")
+            {
+                signatureId = await ActiveSignatureIdAsync(userId.Value);
+                stampId = await ActiveStampIdAsync();
+                if (signatureId == null || stampId == null)
+                {
+                    TempData["ApprovalError"] = signatureId == null
+                        ? "لا يمكن الاعتماد بدون توقيع مفعّل. تواصل مع مدير النظام."
+                        : "لا يمكن الاعتماد بدون ختم مفعّل للجهة. تواصل مع مدير النظام.";
+                    return RedirectToAction("Review", new { id = reportId });
+                }
+            }
+
             _db.ReportApprovals.Add(new ReportApproval
             {
                 ReportId = report.ReportId,
                 ApproverUserId = userId.Value,
                 Decision = decision,
                 ApproverNotes = approverNotes,
-                DecisionDate = DateTime.Now
+                DecisionDate = DateTime.Now,
+                SignatureId = signatureId,   // نسخة ثابتة وقت القرار
+                StampId = stampId
             });
 
             report.Status = decision == "approve" ? "approved" : "returned";
@@ -119,8 +142,21 @@ namespace Land_plans_Report.Controllers
             });
 
             await _db.SaveChangesAsync();
+            TempData["Success"] = decision == "approve"
+                ? $"تم اعتماد التقرير {report.ReportNumber}"
+                : $"تمت إعادة التقرير {report.ReportNumber} للتعديل";
             return RedirectToAction("Index");
         }
+
+        private Task<int?> ActiveSignatureIdAsync(int userId) => _db.Signatures
+            .Where(s => s.Kind == SignatureKinds.Signature && s.IsActive && s.UserId == userId)
+            .Select(s => (int?)s.SignatureId)
+            .FirstOrDefaultAsync();
+
+        private Task<int?> ActiveStampIdAsync() => _db.Signatures
+            .Where(s => s.Kind == SignatureKinds.Stamp && s.IsActive)
+            .Select(s => (int?)s.SignatureId)
+            .FirstOrDefaultAsync();
 
         private (int? userId, string? roleCode) CurrentUser() => (
             HttpContext.Session.GetInt32("UserId"),

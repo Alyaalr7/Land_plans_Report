@@ -1,77 +1,175 @@
 ﻿@using Land_plans_Report.Data
+@using Land_plans_Report.Helpers
+@using Land_plans_Report.Models
 @model List<Report>
 @{
-    var recentAudit = ViewBag.RecentAudit as List<AuditLogEntry>;
-    var auditNames = ViewBag.AuditUserNames as Dictionary<int, string>;
+    // عرض فقط: كل الأرقام تجي من DashboardController (ViewBag.Admin)
+    var d = ViewBag.Admin as AdminDashboardData ?? new AdminDashboardData();
+    int chartMax = Math.Max(1, d.Months.Select(m => Math.Max(m.First, m.Second)).DefaultIfEmpty(0).Max());
+    int typeMax = Math.Max(1, d.ByType.Select(t => t.Count).DefaultIfEmpty(0).Max());
+    int ready = d.SigningUsers - d.MissingSignatures.Count;
+
+    string DaysText(int n) => n <= 0 ? "اليوم" : n == 1 ? "يوم واحد" : n == 2 ? "يومان" : n <= 10 ? $"{n} أيام" : $"{n} يوماً";
+
+    string Responsible(string type) =>
+        d.ApproverRoleNames.TryGetValue(type == "plan" ? "PlanApprover" : "PlotApprover", out var n) ? n : "";
 }
 
-<div class="page-header">
-    <div>
-        <div class="accent-bar"></div>
-        <h1>لوحة تحكم مدير النظام</h1>
-        <p>نظرة شاملة على كل النظام: التقارير والمستخدمون</p>
+<div class="dash">
+
+    <div class="page-head">
+        <h1 class="dash-title">لوحة التحكم</h1>
+        <span class="page-meta">@DateDisplay.Date(DateTime.Today)</span>
     </div>
-</div>
 
-<div class="kpi-grid">
-    <div class="kpi-card"><div class="kpi-icon green">@ViewBag.CountApproved</div><div><div class="kpi-value">@ViewBag.CountApproved</div><div class="kpi-label">تقارير معتمدة (الكل)</div></div></div>
-    <div class="kpi-card"><div class="kpi-icon gold">@ViewBag.CountPending</div><div><div class="kpi-value">@ViewBag.CountPending</div><div class="kpi-label">بانتظار اعتماد</div></div></div>
-    <div class="kpi-card"><div class="kpi-icon gray">@ViewBag.TotalUsers</div><div><div class="kpi-value">@ViewBag.TotalUsers</div><div class="kpi-label">مستخدمون فعّالون</div></div></div>
-</div>
+    <!-- إجراءات سريعة -->
+    <div class="action-grid">
+        <a class="action-card" asp-controller="Users" asp-action="Create">
+            <span class="action-icon"><svg class="ico"><use href="#i-users" /></svg></span>
+            <span><strong>إضافة مستخدم</strong><small>حساب جديد وتحديد دوره</small></span>
+        </a>
+        <a class="action-card" asp-controller="Signatures" asp-action="Index">
+            <span class="action-icon"><svg class="ico"><use href="#i-stamp" /></svg></span>
+            <span><strong>إضافة توقيع أو ختم</strong><small>رفع صورة وتفعيلها</small></span>
+        </a>
+        <a class="action-card" asp-controller="AuditLog" asp-action="Index">
+            <span class="action-icon"><svg class="ico"><use href="#i-file" /></svg></span>
+            <span><strong>سجل التدقيق</strong><small>كل العمليات في النظام</small></span>
+        </a>
+    </div>
 
-<div class="card mb-16">
-    <div class="card-header"><h3>إدارة النظام</h3></div>
-    <div class="card-pad">
-        <div class="quick-actions">
-            <a class="quick-action-btn" asp-controller="Users" asp-action="Index"><strong>إدارة المستخدمين</strong><span>الأدوار والصلاحيات</span></a>
-            <a class="quick-action-btn" asp-controller="Signatures" asp-action="Index"><strong>التوقيعات والأختام</strong><span>نص الختم لكل دور</span></a>
-            <a class="quick-action-btn" asp-controller="AuditLog" asp-action="Index"><strong>سجل التدقيق الكامل</strong><span>كل العمليات بالنظام</span></a>
+    <!-- المؤشرات -->
+    <div class="stat-grid">
+        <div class="stat-card is-static">
+            <span class="stat-icon is-info"><svg class="ico"><use href="#i-file" /></svg></span>
+            <span class="stat-label">التقارير المرسلة</span>
+            <span class="stat-value">@d.Sent</span>
+            <span class="stat-sub">@d.SentThisMonth هذا الشهر</span>
+        </div>
+        <div class="stat-card is-static">
+            <span class="stat-icon is-warning"><svg class="ico"><use href="#i-clock" /></svg></span>
+            <span class="stat-label">بانتظار الاعتماد</span>
+            <span class="stat-value">@d.Pending</span>
+            @if (d.LateCount > 0)
+            {
+                <span class="stat-sub is-alert">@d.LateCount متأخرة</span>
+            }
+        </div>
+        <div class="stat-card is-static">
+            <span class="stat-icon is-success"><svg class="ico"><use href="#i-check" /></svg></span>
+            <span class="stat-label">التقارير المعتمدة</span>
+            <span class="stat-value">@d.Approved</span>
+            @if (d.AvgApprovalDays != null)
+            {
+                <span class="stat-sub">متوسط الاعتماد @d.AvgApprovalDays يوم</span>
+            }
+        </div>
+        <div class="stat-card is-static">
+            <span class="stat-icon is-danger"><svg class="ico"><use href="#i-return" /></svg></span>
+            <span class="stat-label">المعادة للتعديل</span>
+            <span class="stat-value">@d.Returned</span>
         </div>
     </div>
-</div>
 
-<div class="card mb-16">
-    <div class="card-header"><h3>آخر الأنشطة بالنظام كامل</h3></div>
-    <div class="card-pad">
-        <div class="activity-list">
-            @if (recentAudit == null || !recentAudit.Any())
-            {
-                <p class="text-muted mt-0">لا توجد أنشطة مسجلة بعد</p>
-            }
-            @foreach (var a in recentAudit ?? new())
-            {
-                <div class="activity-item">
-                    <span class="activity-dot"></span>
-                    <div>
-                        <strong>@a.ActionType — @a.ActionDetails</strong>
-                        <span>@(auditNames != null && auditNames.ContainsKey(a.UserId) ? auditNames[a.UserId] : "—") · @a.ActionDate.ToString("dd MMM yyyy, hh:mm tt")</span>
+    <!-- الرسوم -->
+    <div class="panel-grid panel-grid--wide">
+        <section class="panel">
+            <div class="panel-head">
+                <h2>حركة التقارير</h2>
+                <span class="chart-legend">
+                    <span><i class="lg-1"></i>مرسلة</span>
+                    <span><i class="lg-2"></i>معتمدة</span>
+                </span>
+            </div>
+            <div class="bar-chart" role="img" aria-label="التقارير المرسلة والمعتمدة في آخر 6 أشهر">
+                @foreach (var m in d.Months)
+                {
+                    <div class="bar-col">
+                        <div class="bar-pair">
+                            <span class="bar bar-1" style="height:@(m.First * 100 / chartMax)%" title="مرسلة: @m.First"><b>@m.First</b></span>
+                            <span class="bar bar-2" style="height:@(m.Second * 100 / chartMax)%" title="معتمدة: @m.Second"><b>@m.Second</b></span>
+                        </div>
+                        <span class="bar-label">@m.Label</span>
                     </div>
+                }
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head"><h2>حسب نوع التقرير</h2></div>
+            @if (!d.ByType.Any())
+            {
+                <p class="panel-empty">لا توجد تقارير مرسلة</p>
+            }
+            @foreach (var t in d.ByType)
+            {
+                <div class="hbar">
+                    <div class="hbar-row"><span>@AuditLabels.ReportType(t.Type)</span><b>@t.Count</b></div>
+                    <div class="hbar-track"><span style="width:@(t.Count * 100 / typeMax)%"></span></div>
                 </div>
             }
-        </div>
+        </section>
     </div>
-</div>
 
-<div class="card">
-    <div class="card-header"><h3>أحدث التقارير بكل النظام</h3></div>
-    <div class="table-wrap">
-        <table class="data-table">
-            <thead><tr><th>رقم التقرير</th><th>النوع</th><th>الحالة</th><th>الإجراء</th></tr></thead>
-            <tbody>
-                @if (!Model.Any())
+    <div class="panel-grid">
+        <section class="panel">
+            <div class="panel-head">
+                <h2>جاهزية التوقيع</h2>
+                <span class="panel-meta">@ready من @d.SigningUsers</span>
+            </div>
+            <ul class="list-rows">
+                <li>
+                    <span class="list-main">ختم الجهة</span>
+                    @if (d.HasActiveStamp)
+                    {
+                        <span class="badge approved">مفعّل</span>
+                    }
+                    else
+                    {
+                        <span class="badge returned">غير موجود</span>
+                        <a class="dga-link" asp-controller="Signatures" asp-action="Index">إضافة</a>
+                    }
+                </li>
+                @foreach (var u in d.MissingSignatures)
                 {
-                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">لا توجد تقارير بعد</td></tr>
+                    <li>
+                        <span class="list-main">
+                            <a class="dga-link" asp-controller="Users" asp-action="Details" asp-route-id="@u.UserId">@u.FullName</a>
+                            <small>@u.RoleName</small>
+                        </span>
+                        <span class="badge warning">بدون توقيع</span>
+                        <a class="dga-link" asp-controller="Signatures" asp-action="Index">إضافة</a>
+                    </li>
                 }
-                @foreach (var r in Model)
+                @if (d.HasActiveStamp && !d.MissingSignatures.Any())
                 {
-                    <tr>
-                        <td>@r.ReportNumber</td>
-                        <td>@r.ReportType</td>
-                        <td><partial name="_StatusBadgePartial" model="@r.Status" /></td>
-                        <td><a class="link-action" asp-controller="Reports" asp-action="Details" asp-route-id="@r.ReportId">عرض</a></td>
-                    </tr>
+                    <li><span class="list-main text-muted">كل المستخدمين لديهم توقيع</span></li>
                 }
-            </tbody>
-        </table>
+            </ul>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2>تقارير متأخرة في الاعتماد</h2>
+                <span class="panel-meta">أكثر من 5 أيام</span>
+            </div>
+            <ul class="list-rows">
+                @foreach (var r in d.Late)
+                {
+                    <li>
+                        <span class="list-main">
+                            <a class="dga-link" asp-controller="Reports" asp-action="Details" asp-route-id="@r.ReportId"><bdi>@r.ReportNumber</bdi></a>
+                            <small>@AuditLabels.ReportType(r.ReportType) · @Responsible(r.ReportType)</small>
+                        </span>
+                        <span class="badge returned">@DaysText(r.Days)</span>
+                    </li>
+                }
+                @if (!d.Late.Any())
+                {
+                    <li><span class="list-main text-muted">لا توجد تقارير متأخرة</span></li>
+                }
+            </ul>
+        </section>
     </div>
+
 </div>

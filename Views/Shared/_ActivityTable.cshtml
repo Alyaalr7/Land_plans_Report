@@ -1,0 +1,76 @@
+﻿@using Land_plans_Report.Helpers
+@using Land_plans_Report.Models
+@model ActivityTableModel
+@{
+    // عرض فقط: جدول العمليات + علامات التصنيف (الفلترة والترقيم في activity.js)
+    var counts = Model.Rows.GroupBy(r => AuditLabels.Category(r.ActionType)).ToDictionary(g => g.Key, g => g.Count());
+    int cols = Model.ShowUser ? 5 : 4;
+    int i = 0;
+}
+
+<div class="chip-group" role="group" aria-label="تصفية حسب نوع العملية">
+    <button type="button" class="chip" data-chip="" aria-pressed="true">الكل <span class="chip-count">@Model.Rows.Count</span></button>
+    @foreach (var c in AuditLabels.Categories)
+    {
+        if (counts.TryGetValue(c.Key, out var n))
+        {
+            <button type="button" class="chip" data-chip="@c.Key" aria-pressed="false">@c.Label <span class="chip-count">@n</span></button>
+        }
+    }
+</div>
+
+<div class="dga-table-wrap">
+    <table class="dga-table">
+        <thead>
+            <tr>
+                <th class="col-num">م</th>
+                <th>العملية</th>
+                @if (Model.ShowUser)
+                {
+                    <th>المستخدم</th>
+                }
+                <th>التفاصيل</th>
+                <th>الوقت</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var r in Model.Rows)
+            {
+                i++;
+                var details = AuditLabels.Details(r.ActionType, r.Details, r.ReportType, r.ReportCreator);
+                <tr data-cat="@AuditLabels.Category(r.ActionType)" data-search="@($"{r.UserName} {r.RoleName} {r.ReportNumber} {details} {AuditLabels.Action(r.ActionType)}")">
+                    <td class="col-num row-num">@i</td>
+                    <td>
+                        <span class="op">
+                            <span class="stat-icon op-icon @AuditLabels.Tone(r.ActionType)" aria-hidden="true"><svg class="ico ico-sm"><use href="#@AuditLabels.Icon(r.ActionType)" /></svg></span>
+                            <span class="cell-stack">
+                                @AuditLabels.Action(r.ActionType)
+                                @if (r.ReportId != null)
+                                {
+                                    <a class="dga-link cell-sub" asp-controller="Reports" asp-action="Details" asp-route-id="@r.ReportId"><bdi>@r.ReportNumber</bdi></a>
+                                }
+                            </span>
+                        </span>
+                    </td>
+                    @if (Model.ShowUser)
+                    {
+                        <td>
+                            <span class="cell-stack">
+                                <a class="dga-link" asp-controller="Users" asp-action="Details" asp-route-id="@r.UserId">@r.UserName</a>
+                                @if (!string.IsNullOrEmpty(r.RoleName))
+                                {
+                                    <span class="cell-sub text-muted">@r.RoleName</span>
+                                }
+                            </span>
+                        </td>
+                    }
+                    <td class="col-details">@(details ?? "—")</td>
+                    <td class="col-time">@DateDisplay.When(r.Date)</td>
+                </tr>
+            }
+            <tr class="dga-table-empty-row" @(Model.Rows.Any() ? "hidden" : "")>
+                <td colspan="@cols" class="dga-table-empty">لا توجد عمليات</td>
+            </tr>
+        </tbody>
+    </table>
+</div>

@@ -1,71 +1,108 @@
 ﻿@using Land_plans_Report.Data
+@using Land_plans_Report.Helpers
+@using Land_plans_Report.Models
 @model List<Report>
-
-<div class="page-header">
-    <div>
-        <div class="accent-bar"></div>
-        <h1>مرحباً @ViewBag.FullName</h1>
-        <p>لديك @ViewBag.CountPending تقريراً بانتظار قرارك</p>
-    </div>
-    <a asp-controller="Approval" asp-action="Index" class="btn btn-primary">مراجعة التقارير المعلقة →</a>
-</div>
-
-<div class="kpi-grid">
-    <div class="kpi-card"><div class="kpi-icon gold">@ViewBag.CountPending</div><div><div class="kpi-value">@ViewBag.CountPending</div><div class="kpi-label">بانتظار قرارك</div></div></div>
-    <div class="kpi-card"><div class="kpi-icon green">@ViewBag.CountApproved</div><div><div class="kpi-value">@ViewBag.CountApproved</div><div class="kpi-label">اعتمدتها</div></div></div>
-    <div class="kpi-card"><div class="kpi-icon red">@ViewBag.CountReturned</div><div><div class="kpi-value">@ViewBag.CountReturned</div><div class="kpi-label">أعدتها للتعديل</div></div></div>
-</div>
-
 @{
-    var pendingList = ViewBag.PendingList as List<Report>;
-}
-<div class="card mb-16">
-    <div class="card-header"><h3>أقدم التقارير المعلقة</h3><p>الأولوية للأقدم إرسالاً</p></div>
-    <div class="table-wrap">
-        <table class="data-table">
-            <thead><tr><th>رقم التقرير</th><th>النوع</th><th>تاريخ الإرسال</th><th></th></tr></thead>
-            <tbody>
-                @if (pendingList == null || !pendingList.Any())
-                {
-                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">لا توجد تقارير معلقة حالياً 🎉</td></tr>
-                }
-                else
-                {
-                    @foreach (var p in pendingList)
-                    {
-                        <tr>
-                            <td>@p.ReportNumber</td>
-                            <td>@p.ReportType</td>
-                            <td>@(p.SubmittedAt?.ToString("dd MMM yyyy") ?? "-")</td>
-                            <td><a class="link-action" asp-controller="Approval" asp-action="Review" asp-route-id="@p.ReportId">مراجعة</a></td>
-                        </tr>
-                    }
-                }
-            </tbody>
-        </table>
-    </div>
-</div>
+    // عرض فقط: كل الأرقام تجي من DashboardController (ViewBag.Approver)
+    var d = ViewBag.Approver as ApproverDashboardData ?? new ApproverDashboardData();
+    int chartMax = Math.Max(1, d.Months.Select(m => Math.Max(m.First, m.Second)).DefaultIfEmpty(0).Max());
 
-<div class="card">
-    <div class="card-header"><h3>آخر قراراتي</h3></div>
-    <div class="table-wrap">
-        <table class="data-table">
-            <thead><tr><th>رقم التقرير</th><th>النوع</th><th>الحالة النهائية</th><th></th></tr></thead>
-            <tbody>
-                @if (!Model.Any())
-                {
-                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">لا توجد قرارات سابقة بعد</td></tr>
-                }
-                @foreach (var r in Model.Where(r => r.Status != "pending"))
-                {
-                    <tr>
-                        <td>@r.ReportNumber</td>
-                        <td>@r.ReportType</td>
-                        <td><partial name="_StatusBadgePartial" model="@r.Status" /></td>
-                        <td><a class="link-action" asp-controller="Reports" asp-action="Details" asp-route-id="@r.ReportId">عرض</a></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+    string DaysText(int n) => n <= 0 ? "اليوم" : n == 1 ? "يوم واحد" : n == 2 ? "يومان" : n <= 10 ? $"{n} أيام" : $"{n} يوماً";
+    string DaysTone(int n) => n >= 5 ? "returned" : n >= 3 ? "warning" : "draft";
+}
+
+<div class="dash">
+
+    <div class="page-head">
+        <h1 class="dash-title">لوحة التحكم</h1>
+        <span class="page-meta">@DateDisplay.Date(DateTime.Today)</span>
     </div>
+
+    @if (!d.HasSignature || !d.HasActiveStamp)
+    {
+        <div class="dga-alert dga-alert--warning" role="alert">
+            <div>
+                <p>
+                    @(!d.HasSignature && !d.HasActiveStamp ? "لا يوجد توقيع مفعّل لك ولا ختم للجهة"
+                        : !d.HasSignature ? "لا يوجد توقيع مفعّل لك"
+                        : "لا يوجد ختم مفعّل للجهة") — تواصل مع مدير النظام قبل الاعتماد.
+                </p>
+            </div>
+        </div>
+    }
+
+    <!-- المؤشرات -->
+    <div class="stat-grid">
+        <div class="stat-card is-static">
+            <span class="stat-icon is-warning"><svg class="ico"><use href="#i-clock" /></svg></span>
+            <span class="stat-label">بانتظار قرارك</span>
+            <span class="stat-value">@d.Pending</span>
+        </div>
+        <div class="stat-card is-static">
+            <span class="stat-icon is-success"><svg class="ico"><use href="#i-check" /></svg></span>
+            <span class="stat-label">اعتمدتها هذا الشهر</span>
+            <span class="stat-value">@d.ApprovedThisMonth</span>
+        </div>
+        <div class="stat-card is-static">
+            <span class="stat-icon is-danger"><svg class="ico"><use href="#i-return" /></svg></span>
+            <span class="stat-label">أعدتها هذا الشهر</span>
+            <span class="stat-value">@d.ReturnedThisMonth</span>
+        </div>
+        <div class="stat-card is-static">
+            <span class="stat-icon is-info"><svg class="ico"><use href="#i-pen" /></svg></span>
+            <span class="stat-label">متوسط مدة القرار</span>
+            <span class="stat-value">@(d.AvgDecisionDays == null ? "—" : $"{d.AvgDecisionDays} يوم")</span>
+        </div>
+    </div>
+
+    <div class="panel-grid panel-grid--wide">
+        <section class="panel">
+            <div class="panel-head">
+                <h2>بانتظار قرارك</h2>
+                @if (d.Pending > 0)
+                {
+                    <a class="dga-link" asp-controller="Approval" asp-action="Index">عرض الكل</a>
+                }
+            </div>
+            <ul class="list-rows">
+                @foreach (var r in d.Waiting)
+                {
+                    <li>
+                        <span class="list-main">
+                            <a class="dga-link" asp-controller="Approval" asp-action="Review" asp-route-id="@r.ReportId"><bdi>@r.ReportNumber</bdi></a>
+                            <small>@AuditLabels.ReportType(r.ReportType) · @r.Preparer</small>
+                        </span>
+                        <span class="badge @DaysTone(r.Days)">@DaysText(r.Days)</span>
+                    </li>
+                }
+                @if (!d.Waiting.Any())
+                {
+                    <li><span class="list-main text-muted">لا توجد تقارير بانتظارك</span></li>
+                }
+            </ul>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2>قراراتي</h2>
+                <span class="chart-legend">
+                    <span><i class="lg-ok"></i>اعتماد</span>
+                    <span><i class="lg-ret"></i>إعادة</span>
+                </span>
+            </div>
+            <div class="bar-chart bar-chart--compact" role="img" aria-label="قراراتي في آخر 6 أشهر">
+                @foreach (var m in d.Months)
+                {
+                    <div class="bar-col">
+                        <div class="bar-pair">
+                            <span class="bar bar-ok" style="height:@(m.First * 100 / chartMax)%" title="اعتماد: @m.First"><b>@m.First</b></span>
+                            <span class="bar bar-ret" style="height:@(m.Second * 100 / chartMax)%" title="إعادة: @m.Second"><b>@m.Second</b></span>
+                        </div>
+                        <span class="bar-label">@m.Label</span>
+                    </div>
+                }
+            </div>
+        </section>
+    </div>
+
 </div>

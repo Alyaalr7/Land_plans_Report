@@ -1,41 +1,301 @@
 ﻿@using Land_plans_Report.Data
-@model List<Role>
+@using Land_plans_Report.Models
+@model SignaturesIndexViewModel
 @{
-    ViewData["Title"] = "التوقيعات والأختام";
+    ViewData["Title"] = "التواقيع والأختام";
     ViewBag.ActivePage = "signatures";
+
+    int signers = Model.Users.Count;
+    int signed = Model.Users.Count(u => Model.ActiveSignatures.ContainsKey(u.UserId));
+    int missing = signers - signed;
+    var stamp = Model.ActiveStamp;
 }
 
-<div class="page-header">
-    <div>
-        <div class="accent-bar"></div>
-        <h1>التوقيعات والأختام</h1>
-        <p>نص الختم الرسمي لكل دور اعتماد — مرتبط بالدور نفسه، وليس بفرع معين</p>
-    </div>
-</div>
+<div class="dash">
 
-<div class="card">
-    <div class="table-wrap">
-        <table class="data-table">
-            <thead><tr><th>م</th><th>الدور</th><th>نص الختم الرسمي</th><th>الإجراء</th></tr></thead>
-            <tbody>
-                @{
-                    int i = 1;
-                }
-                @foreach (var r in Model)
+    <div class="page-head">
+        <div>
+            <h1 class="dash-title">التواقيع والأختام</h1>
+            <p class="page-lead">ختم الجهة الرسمي، وتوقيع كل مستخدم يوقّع على التقارير</p>
+        </div>
+    </div>
+
+    @if (TempData["SignatureError"] is string error)
+    {
+        <div class="dga-alert dga-alert--danger" role="alert">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5" /><circle cx="12" cy="16.5" r=".6" fill="currentColor" /></svg>
+            <div><p>@error</p></div>
+        </div>
+    }
+
+    @* تنبيه: وش اللي يوقف العمل حالياً *@
+    @if (stamp == null || missing > 0)
+    {
+        <div class="dga-alert dga-alert--warning">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 3 2 20h20z" /><path d="M12 10v4" /><circle cx="12" cy="17" r=".6" fill="currentColor" /></svg>
+            <div>
+                <strong>يلزم استكمال التالي</strong>
+                @if (stamp == null)
                 {
-                    <tr>
-                        <td>@i</td>
-                        <td>@r.RoleName</td>
-                        <td>@(r.StampText ?? "— لم يُحدد بعد —")</td>
-                        <td><a class="link-action" asp-action="Edit" asp-route-id="@r.RoleId">تعديل</a></td>
-                    </tr>
-                    i++;
+                    <p>لا يمكن اعتماد أي تقرير قبل رفع ختم الجهة.</p>
                 }
-            </tbody>
-        </table>
+                @if (missing > 0)
+                {
+                    <p>@missing من المستخدمين لا يستطيعون إرسال التقارير أو اعتمادها قبل رفع توقيعهم.</p>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- المؤشرات -->
+    <div class="stat-grid">
+        <div class="stat-card">
+            <span class="stat-icon @(stamp != null ? "is-success" : "is-danger")"><svg class="ico"><use href="#i-stamp" /></svg></span>
+            <span class="stat-label">ختم الجهة</span>
+            <span class="stat-value stat-value--text">@(stamp != null ? "فعّال" : "غير مرفوع")</span>
+        </div>
+        <button type="button" class="stat-card" data-filter="" aria-pressed="false">
+            <span class="stat-icon is-neutral"><svg class="ico"><use href="#i-users" /></svg></span>
+            <span class="stat-label">مستخدمون يوقّعون</span>
+            <span class="stat-value">@signers</span>
+        </button>
+        <button type="button" class="stat-card" data-filter="signed" aria-pressed="false">
+            <span class="stat-icon is-success"><svg class="ico"><use href="#i-check" /></svg></span>
+            <span class="stat-label">لديهم توقيع</span>
+            <span class="stat-value">@signed</span>
+        </button>
+        <button type="button" class="stat-card" data-filter="missing" aria-pressed="false">
+            <span class="stat-icon @(missing > 0 ? "is-danger" : "is-neutral")"><svg class="ico"><use href="#i-pen" /></svg></span>
+            <span class="stat-label">بدون توقيع</span>
+            <span class="stat-value">@missing</span>
+        </button>
     </div>
+
+    <!-- ختم الجهة -->
+    <section class="detail-card">
+        <h2>ختم الجهة</h2>
+        @if (stamp != null)
+        {
+            <div class="sig-stamp">
+                <div class="sig-preview">
+                    <img src="@Url.Action("Signature", "Files", new { id = stamp.SignatureId })" alt="ختم الجهة الحالي" />
+                </div>
+                <div class="sig-stamp-info">
+                    <dl class="kv-grid">
+                        <div class="kv"><dt>الحالة</dt><dd><span class="badge approved">فعّال</span></dd></div>
+                        <div class="kv"><dt>تاريخ الرفع</dt><dd><bdi>@stamp.UploadedAt.ToString("yyyy/MM/dd")</bdi></dd></div>
+                        <div class="kv"><dt>الاستخدام</dt><dd>يظهر على كل تقرير بعد اعتماده</dd></div>
+                    </dl>
+                    <div class="sig-actions">
+                        <button type="button" class="dga-btn dga-btn--secondary" data-upload-stamp>استبدال الختم</button>
+                        <button type="button" class="dga-btn dga-btn--ghost" data-deactivate="@stamp.SignatureId" data-deactivate-name="ختم الجهة">تعطيل</button>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="sig-empty">
+                <span class="stat-icon is-danger"><svg class="ico"><use href="#i-stamp" /></svg></span>
+                <strong>لم يُرفع ختم بعد</strong>
+                <p>الختم يظهر على التقارير المعتمدة، ولا يمكن الاعتماد بدونه.</p>
+                <button type="button" class="dga-btn dga-btn--primary" data-upload-stamp>
+                    <svg class="ico ico-sm"><use href="#i-plus" /></svg> رفع الختم
+                </button>
+            </div>
+        }
+        @if (Model.StampHistoryCount > 0)
+        {
+            <p class="sig-note">@Model.StampHistoryCount من الأختام السابقة محفوظة، وتظهر على التقارير التي اعتُمدت بها.</p>
+        }
+    </section>
+
+    <!-- تواقيع المستخدمين -->
+    <section class="dash-section" aria-labelledby="sig-users-title">
+        <div class="dash-section-head">
+            <h2 id="sig-users-title">تواقيع المستخدمين <span class="dash-filter-label" id="sig-filter-label"></span></h2>
+        </div>
+
+        <div class="filter-bar" role="search">
+            <div class="search-field">
+                <svg class="ico" aria-hidden="true"><use href="#i-search" /></svg>
+                <input type="search" id="sig-q" placeholder="ابحث باسم المستخدم" aria-label="البحث باسم المستخدم" autocomplete="off" />
+            </div>
+        </div>
+
+        <div class="dga-table-wrap">
+            <table class="dga-table" id="sig-table">
+                <thead><tr><th>المستخدم</th><th>الدور</th><th>التوقيع</th><th>تاريخ الرفع</th><th>الإجراء</th></tr></thead>
+                <tbody>
+                    @foreach (var u in Model.Users)
+                    {
+                        Model.ActiveSignatures.TryGetValue(u.UserId, out var sig);
+                        <tr id="user-@u.UserId" data-name="@u.FullName" data-state="@(sig != null ? "signed" : "missing")">
+                            <td>
+                                <span class="user-cell">
+                                    <span class="user-cell-avatar" aria-hidden="true">@(string.IsNullOrWhiteSpace(u.FullName) ? "م" : u.FullName.Trim().Substring(0, 1))</span>
+                                    @u.FullName
+                                </span>
+                            </td>
+                            <td>@u.Role?.RoleName</td>
+                            <td>
+                                @if (sig != null)
+                                {
+                                    <img class="sig-thumb" src="@Url.Action("Signature", "Files", new { id = sig.SignatureId })" alt="توقيع @u.FullName" loading="lazy" />
+                                }
+                                else
+                                {
+                                    <span class="badge returned">لا يوجد توقيع</span>
+                                }
+                            </td>
+                            <td><bdi>@(sig?.UploadedAt.ToString("yyyy/MM/dd") ?? "—")</bdi></td>
+                            <td>
+                                <div class="table-actions">
+                                    <button type="button" class="dga-link" data-upload-user="@u.UserId" data-user-name="@u.FullName">@(sig != null ? "استبدال" : "رفع توقيع")</button>
+                                    @if (sig != null)
+                                    {
+                                        <button type="button" class="dga-link dga-link--danger" data-deactivate="@sig.SignatureId" data-deactivate-name="توقيع @u.FullName">تعطيل</button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    <tr class="dga-table-empty-row" @(Model.Users.Any() ? "hidden" : "")>
+                        <td colspan="5" class="dga-table-empty">لا يوجد مستخدمون مطابقون</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
 </div>
 
-<div class="audit-strip" style="margin-top:16px;">
-    ملاحظة: هذا الختم نص يُطبع تلقائياً على التقرير النهائي عند اعتماد أي مستخدم يحمل هذا الدور، بغض النظر عن الفرع الذي ينتمي إليه التقرير.
-</div>
+@* نافذة الرفع (للختم ولتوقيع المستخدم — نفس النافذة) *@
+<dialog class="dga-dialog sig-dialog" id="sig-upload-dialog" aria-labelledby="sig-upload-title">
+    <form method="post" enctype="multipart/form-data" id="sig-upload-form"
+          data-stamp-action="@Url.Action("UploadStamp")" data-user-action="@Url.Action("UploadSignature")">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="userId" id="sig-upload-user" />
+        <h2 id="sig-upload-title">رفع صورة</h2>
+        <p>PNG بخلفية شفافة أفضل، أو JPG. الحد الأقصى 10 ميجابايت.</p>
+        <label class="sig-drop">
+            <input type="file" name="file" id="sig-file" accept="image/png,image/jpeg" required />
+            <img id="sig-file-preview" alt="معاينة الصورة المختارة" hidden />
+            <span id="sig-file-label">اضغط لاختيار صورة</span>
+        </label>
+        <div class="dga-dialog-actions">
+            <button type="button" class="dga-btn dga-btn--secondary" data-dialog-close>إلغاء</button>
+            <button type="submit" class="dga-btn dga-btn--primary">رفع وتفعيل</button>
+        </div>
+    </form>
+</dialog>
+
+@* نافذة تأكيد التعطيل *@
+<dialog class="dga-dialog" id="sig-deactivate-dialog" aria-labelledby="sig-deactivate-title">
+    <form method="post" asp-action="Deactivate">
+        <input type="hidden" name="id" id="sig-deactivate-id" />
+        <div class="dga-dialog-icon dga-dialog-icon--warning" aria-hidden="true">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 3 2 20h20z" /><path d="M12 10v4" /><circle cx="12" cy="17" r=".6" fill="currentColor" /></svg>
+        </div>
+        <h2 id="sig-deactivate-title">تعطيل؟</h2>
+        <p>التقارير المعتمدة سابقاً تبقى كما هي. ولا يمكن الإرسال أو الاعتماد بدونه حتى يُرفع بديل.</p>
+        <div class="dga-dialog-actions">
+            <button type="button" class="dga-btn dga-btn--secondary" data-dialog-close>رجوع</button>
+            <button type="submit" class="dga-btn dga-btn--danger">تعطيل</button>
+        </div>
+    </form>
+</dialog>
+
+@section Scripts {
+    <script>
+        // عرض فقط: الفلترة الفورية + فتح نوافذ الرفع والتعطيل
+        (function () {
+            // ── الفلترة: البحث + بطاقات الحالة ──
+            var q = document.getElementById('sig-q');
+            var rows = document.querySelectorAll('#sig-table tbody tr[data-state]');
+            var empty = document.querySelector('#sig-table .dga-table-empty-row');
+            var cards = document.querySelectorAll('.stat-card[data-filter]');
+            var label = document.getElementById('sig-filter-label');
+            var state = '';
+
+            function apply() {
+                var text = q.value.trim().toLowerCase();
+                var shown = 0;
+                rows.forEach(function (r) {
+                    var ok = (!text || r.dataset.name.toLowerCase().indexOf(text) !== -1)
+                          && (!state || r.dataset.state === state);
+                    r.hidden = !ok;
+                    if (ok) shown++;
+                });
+                empty.hidden = shown > 0;
+                label.textContent = '';
+                cards.forEach(function (c) {
+                    var on = !!state && c.dataset.filter === state;
+                    c.setAttribute('aria-pressed', on ? 'true' : 'false');
+                    if (on) label.textContent = '· ' + c.querySelector('.stat-label').textContent;
+                });
+            }
+            q.addEventListener('input', apply);
+            cards.forEach(function (c) {
+                c.addEventListener('click', function () {
+                    state = state === c.dataset.filter ? '' : c.dataset.filter;
+                    apply();
+                    document.getElementById('sig-users-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+            });
+
+            // فتح الصفحة على مستخدم معيّن (#user-5)
+            if (location.hash) {
+                var target = document.querySelector(location.hash);
+                if (target) target.classList.add('is-highlight');
+            }
+
+            // ── نافذة الرفع ──
+            var upDialog = document.getElementById('sig-upload-dialog');
+            var upForm = document.getElementById('sig-upload-form');
+            var upUser = document.getElementById('sig-upload-user');
+            var upTitle = document.getElementById('sig-upload-title');
+            var fileInput = document.getElementById('sig-file');
+            var preview = document.getElementById('sig-file-preview');
+            var fileLabel = document.getElementById('sig-file-label');
+
+            function openUpload(title, action, userId) {
+                upForm.action = action;
+                upUser.value = userId || '';
+                upUser.disabled = !userId;
+                upTitle.textContent = title;
+                upForm.reset();
+                preview.hidden = true;
+                fileLabel.textContent = 'اضغط لاختيار صورة';
+                upDialog.showModal();
+            }
+
+            document.querySelectorAll('[data-upload-stamp]').forEach(function (b) {
+                b.addEventListener('click', function () { openUpload('رفع ختم الجهة', upForm.dataset.stampAction); });
+            });
+            document.querySelectorAll('[data-upload-user]').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    openUpload('توقيع ' + b.dataset.userName, upForm.dataset.userAction, b.dataset.uploadUser);
+                });
+            });
+
+            fileInput.addEventListener('change', function () {
+                var f = fileInput.files[0];
+                if (!f) return;
+                preview.src = URL.createObjectURL(f);
+                preview.hidden = false;
+                fileLabel.textContent = f.name;
+            });
+
+            // ── نافذة التعطيل ──
+            var deDialog = document.getElementById('sig-deactivate-dialog');
+            document.querySelectorAll('[data-deactivate]').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    document.getElementById('sig-deactivate-id').value = b.dataset.deactivate;
+                    document.getElementById('sig-deactivate-title').textContent = 'تعطيل ' + b.dataset.deactivateName + '؟';
+                    deDialog.showModal();
+                });
+            });
+        })();
+    </script>
+}

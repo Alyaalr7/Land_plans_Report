@@ -27,6 +27,7 @@ namespace Land_plans_Report.Data
         public string PasswordHash { get; set; } = "";
         public string? Email { get; set; }
         public string? Phone { get; set; }
+        public string? NationalId { get; set; }   // رقم الهوية — يصير المعرّف الأساسي مع نفاذ
         public int RoleId { get; set; }
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; }
@@ -46,6 +47,7 @@ namespace Land_plans_Report.Data
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public DateTime? SubmittedAt { get; set; }
+        public int? PreparerSignatureId { get; set; }   // توقيع معد التقرير وقت الإرسال (يبقى ثابت حتى لو تغيّر توقيعه بعدين)
 
         // ── يعبيها الفني ──
         public decimal? Latitude { get; set; }
@@ -164,9 +166,29 @@ namespace Land_plans_Report.Data
         public string Decision { get; set; } = ""; // approve | return
         public string? ApproverNotes { get; set; }
         public DateTime DecisionDate { get; set; }
+        public int? SignatureId { get; set; }   // توقيع المعتمِد وقت الاعتماد
+        public int? StampId { get; set; }       // ختم الجهة وقت الاعتماد
 
         public Report? Report { get; set; }
         public User? Approver { get; set; }
+    }
+
+    // التواقيع والأختام في جدول واحد:
+    //   Kind = signature → توقيع شخص (UserId إلزامي)
+    //   Kind = stamp     → ختم الجهة (UserId فاضي)
+    // لا حذف — تعطيل فقط، لأن التقارير المعتمدة تشير للصف
+    public class Signature
+    {
+        [Key]
+        public int SignatureId { get; set; }
+        public string Kind { get; set; } = "";
+        public int? UserId { get; set; }
+        public string FilePath { get; set; } = "";
+        public bool IsActive { get; set; } = true;
+        public DateTime UploadedAt { get; set; }
+        public int UploadedByUserId { get; set; }
+
+        public User? User { get; set; }
     }
 
     public class AuditLogEntry

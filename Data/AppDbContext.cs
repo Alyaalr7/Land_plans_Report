@@ -1,5 +1,6 @@
 ﻿using Land_plans_Report.Data;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography.Xml;
 
 namespace Land_plans_Report.Data
 {
@@ -9,6 +10,7 @@ namespace Land_plans_Report.Data
 
         public DbSet<Role> Roles => Set<Role>();
         public DbSet<User> Users => Set<User>();
+        public DbSet<Signature> Signatures => Set<Signature>();
         //--------------------------------------------------------------
         public DbSet<Report> Reports => Set<Report>();
         public DbSet<ReportPlanDetails> ReportPlanDetails => Set<ReportPlanDetails>();

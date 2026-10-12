@@ -1,4 +1,5 @@
 ﻿@using Land_plans_Report.Data
+@using Land_plans_Report.Helpers
 @model Report
 @{
     ViewData["Title"] = "عرض التقرير";
@@ -312,9 +313,20 @@
             <div class="photo-grid">
                 @foreach (var photo in Model.Photos)
                 {
-                    <a href="@photo.FilePath" target="_blank" class="photo-item">
-                        <img src="@photo.FilePath" alt="صورة مرفقة بالتقرير" loading="lazy" />
-                    </a>
+                    var fileUrl = Url.Action("Photo", "Files", new { id = photo.PhotoId });
+                    if (SecureFileStorage.IsPdf(photo.FilePath))
+                    {
+                        <a href="@fileUrl" target="_blank" rel="noopener" class="photo-item photo-item--file">
+                            <svg class="ico" aria-hidden="true"><use href="#i-file" /></svg>
+                            <span>ملف PDF</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <a href="@fileUrl" target="_blank" rel="noopener" class="photo-item">
+                            <img src="@fileUrl" alt="صورة مرفقة بالتقرير" loading="lazy" />
+                        </a>
+                    }
                 }
             </div>
         </section>

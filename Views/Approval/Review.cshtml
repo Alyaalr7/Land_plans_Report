@@ -1,154 +1,391 @@
 ﻿@using Land_plans_Report.Data
+@using Land_plans_Report.Helpers
 @model Report
 @{
     ViewData["Title"] = "مراجعة التقرير";
     ViewBag.ActivePage = "approval";
-}
 
-<div class="page-header">
-    <div>
-        <div class="accent-bar"></div>
-        <h1>مراجعة التقرير @Model.ReportNumber</h1>
-        <p>مراجعة البيانات واتخاذ قرار الاعتماد أو الإعادة — لن يمكن التعديل على هذا القرار بعد إرساله</p>
-    </div>
-    <a asp-controller="Reports" asp-action="Details" asp-route-id="@Model.ReportId" class="btn btn-outline">عرض التفاصيل كاملة</a>
-</div>
+    int? mySignatureId = ViewBag.MySignatureId as int?;
+    int? stampId = ViewBag.StampId as int?;
+    bool canApprove = mySignatureId != null && stampId != null;
 
-@if (TempData["ApprovalError"] != null)
-{
-    <div style="background:var(--status-returned-bg); color:var(--status-returned-text); padding:12px 16px; border-radius:var(--radius-sm); margin-bottom:16px; font-size:13.5px;">
-        ⚠ @TempData["ApprovalError"]
-    </div>
-}
-
-<div class="form-section">
-    <div class="form-section-header">
-        <div class="step-number">1</div>
-        <div><h4>ملخص المعاملة</h4></div>
-    </div>
-    <div class="form-section-body">
-        <div class="form-grid cols-2">
-            <div class="field"><label>نوع التقرير</label><input type="text" value="@Model.ReportType" readonly /></div>
-            <div class="field"><label>تاريخ الإرسال</label><input type="text" value="@(Model.SubmittedAt?.ToString("dd MMM yyyy") ?? "-")" readonly /></div>
-            <div class="field"><label>الحالة الحالية</label><div style="padding-top:8px;"><partial name="_StatusBadgePartial" model="@Model.Status" /></div></div>
+    // عرض فقط: عنصر (عنوان + قيمة)، والقيمة الفاضية تظهر "—"
+    void Field(string label, object? value, string? unit = null)
+    {
+        var text = value?.ToString();
+        <div class="kv">
+            <dt>@label</dt>
+            <dd>@(string.IsNullOrWhiteSpace(text) ? "—" : (unit == null ? text : text + " " + unit))</dd>
         </div>
-    </div>
-</div>
+    }
+}
 
-@if (Model.PlotDetails != null)
-{
-    <div class="form-section">
-        <div class="form-section-header"><div class="step-number">2</div><div><h4>بيانات المستفيد والقطعة</h4></div></div>
-        <div class="form-section-body">
-            <div class="form-grid cols-2">
-                <div class="field"><label>المستفيد</label><input type="text" value="@Model.PlotDetails.BeneficiaryName" readonly /></div>
-                <div class="field"><label>رقم الهوية</label><input type="text" value="@Model.PlotDetails.BeneficiaryNationalId" readonly /></div>
-                <div class="field"><label>المخطط</label><input type="text" value="@Model.PlotDetails.PlanCode" readonly /></div>
-                <div class="field"><label>رقم القطعة</label><input type="text" value="@Model.PlotDetails.PlotNumber" readonly /></div>
-                <div class="field"><label>الحالة الفنية</label><input type="text" value="@Model.PlotDetails.PlotCondition" readonly /></div>
-                <div class="field"><label>التوصية</label><input type="text" value="@Model.PlotDetails.Recommendation" readonly /></div>
+<div class="dash">
+
+    <nav class="breadcrumb" aria-label="مسار التصفح">
+        <a asp-action="Index">التقارير بانتظار الاعتماد</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page"><bdi>@Model.ReportNumber</bdi></span>
+    </nav>
+
+    <div class="page-head">
+        <div>
+            <h1 class="dash-title">@ReportLabels.Title(Model.ReportType)</h1>
+            <div class="page-meta">
+                <bdi>@Model.ReportNumber</bdi>
+                <partial name="_StatusBadgePartial" model="@Model.Status" />
             </div>
         </div>
-    </div>
-}
-else if (Model.PlanDetails != null)
-{
-    <div class="form-section">
-        <div class="form-section-header"><div class="step-number">2</div><div><h4>بيانات المخطط</h4></div></div>
-        <div class="form-section-body">
-            <div class="form-grid cols-2">
-                <div class="field"><label>كود المخطط</label><input type="text" value="@Model.PlanDetails.PlanCode" readonly /></div>
-                <div class="field"><label>اسم المخطط</label><input type="text" value="@Model.PlanDetails.PlanName" readonly /></div>
-                <div class="field"><label>المساحة</label><input type="text" value="@(Model.PlanDetails.Area) م²" readonly /></div>
-                <div class="field"><label>عدد القطع</label><input type="text" value="@Model.PlanDetails.PlotCount" readonly /></div>
-            </div>
+        <div class="page-actions">
+            <a asp-controller="Reports" asp-action="Print" asp-route-id="@Model.ReportId" target="_blank" class="dga-btn dga-btn--secondary">معاينة الطباعة</a>
         </div>
     </div>
-}
-else if (Model.RawLandDetails != null)
-{
-    <div class="form-section">
-        <div class="form-section-header"><div class="step-number">2</div><div><h4>بيانات الأرض الخام</h4></div></div>
-        <div class="form-section-body">
-            <div class="form-grid cols-2">
-                <div class="field"><label>هل يوجد مخطط معتمد</label><input type="text" value="@(Model.RawLandDetails.HasApprovedPlan == true ? "نعم" : "لا")" readonly /></div>
-                <div class="field"><label>المساحة</label><input type="text" value="@(Model.RawLandDetails.Area) م²" readonly /></div>
-                <div class="field"><label>حالة الإسفلت</label><input type="text" value="@Model.RawLandDetails.AsphaltStatus" readonly /></div>
-                <div class="field"><label>حالة الكهرباء</label><input type="text" value="@Model.RawLandDetails.ElectricityStatus" readonly /></div>
-            </div>
-        </div>
-    </div>
-}
-else if (Model.UnplannedLandDetails != null)
-{
-    <div class="form-section">
-        <div class="form-section-header"><div class="step-number">2</div><div><h4>بيانات الأرض بلا مخطط</h4></div></div>
-        <div class="form-section-body">
-            <div class="form-grid cols-2">
-                <div class="field"><label>داخل حد التنمية</label><input type="text" value="@(Model.UnplannedLandDetails.InsideDevelopmentBoundary == true ? "نعم" : "لا")" readonly /></div>
-                <div class="field"><label>المساحة</label><input type="text" value="@(Model.UnplannedLandDetails.Area) م²" readonly /></div>
-                <div class="field"><label>حالة الإسفلت</label><input type="text" value="@Model.UnplannedLandDetails.AsphaltStatus" readonly /></div>
-                <div class="field"><label>حالة الكهرباء</label><input type="text" value="@Model.UnplannedLandDetails.ElectricityStatus" readonly /></div>
-            </div>
-        </div>
-    </div>
-}
 
-<div class="audit-strip mb-16">📎 المرفقات: @Model.Photos.Count صورة</div>
+    @if (TempData["ApprovalError"] is string error)
+    {
+        <div class="dga-alert dga-alert--danger" role="alert"><div><p>@error</p></div></div>
+    }
 
-<form method="post" asp-action="Submit" id="approvalForm">
-    <input type="hidden" name="reportId" value="@Model.ReportId" />
-    <div class="form-section">
-        <div class="form-section-header"><div class="step-number">3</div><div><h4>قرار الاعتماد</h4></div></div>
-        <div class="form-section-body">
-            <div class="form-grid cols-2" style="margin-bottom:18px;">
-                <div class="field">
-                    <label>القرار <span class="req">*</span></label>
-                    <div class="radio-group">
-                        <label class="radio-option"><input type="radio" name="action" value="approve" required /> موافقة</label>
-                        <label class="radio-option"><input type="radio" name="action" value="return" required /> إعادة للتعديل</label>
-                    </div>
+    @if (!canApprove)
+    {
+        <div class="dga-alert dga-alert--warning" role="alert">
+            <div>
+                <p>
+                    @(mySignatureId == null && stampId == null ? "لا يوجد توقيع مفعّل لك ولا ختم للجهة"
+                        : mySignatureId == null ? "لا يوجد توقيع مفعّل لك"
+                        : "لا يوجد ختم مفعّل للجهة") — يمكنك إعادة التقرير فقط، تواصل مع مدير النظام للاعتماد.
+                </p>
+            </div>
+        </div>
+    }
+
+    <section class="detail-card">
+        <h2>بيانات عامة</h2>
+        <dl class="kv-grid">
+            @{
+                Field("معد التقرير", Model.CreatedByUser?.FullName);
+            }
+            @{
+                Field("تاريخ الإرسال", Model.SubmittedAt == null ? null : DateDisplay.When(Model.SubmittedAt.Value));
+            }
+            @{
+                Field("المرفقات", Model.Photos.Count);
+            }
+        </dl>
+    </section>
+
+    @if (Model.PlanDetails != null)
+    {
+        var d = Model.PlanDetails;
+        <section class="detail-card">
+            <h2>بيانات المخطط</h2>
+            <dl class="kv-grid">
+                @{
+                    Field("كود المخطط", d.PlanCode);
+                }
+                @{
+                    Field("اسم المخطط", d.PlanName);
+                }
+                @{
+                    Field("المساحة", ReportLabels.Number(d.Area), "م²");
+                }
+                @{
+                    Field("المنطقة", d.Region);
+                }
+                @{
+                    Field("المحافظة", d.Governorate);
+                }
+                @{
+                    Field("المركز أو القرية", d.CenterOrVillage);
+                }
+                @{
+                    Field("عدد القطع", d.PlotCount);
+                }
+                @{
+                    Field("البعد عن المركز", ReportLabels.Number(d.DistanceFromCenter), "كم");
+                }
+                @{
+                    Field("حالة الإسفلت", ReportLabels.Option(d.AsphaltStatus));
+                }
+                @{
+                    Field("شبكة المياه والصرف", ReportLabels.Option(d.WaterDrainage));
+                }
+                @{
+                    Field("حالة الكهرباء", ReportLabels.Option(d.ElectricityStatus));
+                }
+                @{
+                    Field("نسبة العمران", d.UrbanCondition, "%");
+                }
+            </dl>
+        </section>
+    }
+    else if (Model.PlotDetails != null)
+    {
+        var d = Model.PlotDetails;
+        <section class="detail-card">
+            <h2>بيانات المستفيد والقطعة</h2>
+            <dl class="kv-grid">
+                @{
+                    Field("اسم المستفيد", d.BeneficiaryName);
+                }
+                @{
+                    Field("رقم الهوية", d.BeneficiaryNationalId);
+                }
+                @{
+                    Field("رقم الجوال", d.BeneficiaryPhone);
+                }
+                @{
+                    Field("المنطقة", d.Region);
+                }
+                @{
+                    Field("المحافظة", d.Governorate);
+                }
+                @{
+                    Field("اسم المخطط", d.PlanName);
+                }
+                @{
+                    Field("كود المخطط", d.PlanCode);
+                }
+                @{
+                    Field("رقم القطعة", d.PlotNumber);
+                }
+                @{
+                    Field("الحالة الفنية", ReportLabels.Option(d.PlotCondition));
+                }
+                @{
+                    Field("التوصية", ReportLabels.Option(d.Recommendation));
+                }
+            </dl>
+            @if (!string.IsNullOrEmpty(d.IncompleteNotes))
+            {
+                <div class="detail-note"><dt>أوجه عدم الاكتمال</dt><dd>@d.IncompleteNotes</dd></div>
+            }
+            @if (!string.IsNullOrEmpty(d.NotSuitableNotes))
+            {
+                <div class="detail-note"><dt>أسباب عدم الصلاحية</dt><dd>@d.NotSuitableNotes</dd></div>
+            }
+        </section>
+    }
+    else if (Model.RawLandDetails != null)
+    {
+        var d = Model.RawLandDetails;
+        <section class="detail-card">
+            <h2>بيانات الأرض الخام</h2>
+            <dl class="kv-grid">
+                @{
+                    Field("يوجد مخطط معتمد", ReportLabels.YesNo(d.HasApprovedPlan));
+                }
+                @{
+                    Field("كود المخطط", d.PlanCode);
+                }
+                @{
+                    Field("اسم المخطط", d.PlanName);
+                }
+                @{
+                    Field("المساحة", ReportLabels.Number(d.Area), "م²");
+                }
+                @{
+                    Field("المنطقة", d.Region);
+                }
+                @{
+                    Field("المحافظة", d.Governorate);
+                }
+                @{
+                    Field("المركز أو القرية", d.CenterOrVillage);
+                }
+                @{
+                    Field("عدد القطع", d.PlotCount);
+                }
+                @{
+                    Field("البعد عن المركز", ReportLabels.Number(d.DistanceFromCenter), "كم");
+                }
+                @{
+                    Field("حالة الإسفلت", ReportLabels.Option(d.AsphaltStatus));
+                }
+                @{
+                    Field("حالة الكهرباء", ReportLabels.Option(d.ElectricityStatus));
+                }
+                @{
+                    Field("نسبة العمران", d.UrbanCondition, "%");
+                }
+            </dl>
+        </section>
+    }
+    else if (Model.UnplannedLandDetails != null)
+    {
+        var d = Model.UnplannedLandDetails;
+        <section class="detail-card">
+            <h2>بيانات الأرض بلا مخطط</h2>
+            <dl class="kv-grid">
+                @{
+                    Field("كود المخطط الوصفي", d.PlanCode);
+                }
+                @{
+                    Field("اسم المخطط الوصفي", d.PlanName);
+                }
+                @{
+                    Field("المساحة", ReportLabels.Number(d.Area), "م²");
+                }
+                @{
+                    Field("المنطقة", d.Region);
+                }
+                @{
+                    Field("المحافظة", d.Governorate);
+                }
+                @{
+                    Field("المركز أو القرية", d.CenterOrVillage);
+                }
+                @{
+                    Field("عدد القطع", d.PlotCount);
+                }
+                @{
+                    Field("داخل حد التنمية", ReportLabels.YesNo(d.InsideDevelopmentBoundary));
+                }
+                @{
+                    Field("البعد عن المركز", ReportLabels.Number(d.DistanceFromCenter), "كم");
+                }
+                @{
+                    Field("حالة الإسفلت", ReportLabels.Option(d.AsphaltStatus));
+                }
+                @{
+                    Field("حالة الكهرباء", ReportLabels.Option(d.ElectricityStatus));
+                }
+                @{
+                    Field("نسبة العمران", d.UrbanCondition, "%");
+                }
+            </dl>
+        </section>
+    }
+
+    @if (!string.IsNullOrEmpty(Model.Notes))
+    {
+        <section class="detail-card">
+            <h2>الملاحظات</h2>
+            <p class="detail-text">@Model.Notes</p>
+        </section>
+    }
+
+    @if (Model.Photos.Any())
+    {
+        <section class="detail-card">
+            <h2>المرفقات <span class="detail-count">(@Model.Photos.Count)</span></h2>
+            <div class="photo-grid">
+                @foreach (var photo in Model.Photos)
+                {
+                    var fileUrl = Url.Action("Photo", "Files", new { id = photo.PhotoId });
+                    if (SecureFileStorage.IsPdf(photo.FilePath))
+                    {
+                        <a href="@fileUrl" target="_blank" rel="noopener" class="photo-item photo-item--file">
+                            <svg class="ico" aria-hidden="true"><use href="#i-file" /></svg>
+                            <span>ملف PDF</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <a href="@fileUrl" target="_blank" rel="noopener" class="photo-item">
+                            <img src="@fileUrl" alt="صورة مرفقة بالتقرير" loading="lazy" />
+                        </a>
+                    }
+                }
+            </div>
+        </section>
+    }
+
+    <!-- القرار -->
+    <form method="post" asp-action="Submit" id="approvalForm" class="report-wizard">
+        <input type="hidden" name="reportId" value="@Model.ReportId" />
+
+        <section class="detail-card">
+            <h2>القرار</h2>
+
+            <div class="field">
+                <label>القرار <span class="req">*</span></label>
+                <div class="radio-group">
+                    <label class="radio-option"><input type="radio" name="action" value="approve" required disabled="@(!canApprove)" /> اعتماد</label>
+                    <label class="radio-option"><input type="radio" name="action" value="return" required checked="@(!canApprove)" /> إعادة للتعديل</label>
                 </div>
-                <div class="field">
-                    <label id="notesLabel">ملاحظات (اختيارية)</label>
-                    <input type="text" name="approverNotes" id="approverNotes" placeholder="اختياري مع الموافقة، إلزامي مع الإعادة" />
-                </div>
             </div>
-            <partial name="_SignatureStampPartial" />
+
+            <div class="field review-notes">
+                <label for="approverNotes" id="notesLabel">الملاحظات</label>
+                <textarea name="approverNotes" id="approverNotes" maxlength="500"></textarea>
+                <span class="field-hint" id="notesHint">سبب الإعادة إلزامي</span>
+            </div>
+
+            <!-- معاينة التوقيع والختم كما ستظهر في التقرير -->
+            <div class="review-sign" id="signPreview">
+                <figure>
+                    <figcaption>توقيعك</figcaption>
+                    @if (mySignatureId != null)
+                    {
+                        <img src="@Url.Action("Signature", "Files", new { id = mySignatureId })" alt="توقيعك" />
+                    }
+                    else
+                    {
+                        <span class="review-sign-empty">غير موجود</span>
+                    }
+                </figure>
+                <figure>
+                    <figcaption>ختم الجهة</figcaption>
+                    @if (stampId != null)
+                    {
+                        <img src="@Url.Action("Signature", "Files", new { id = stampId })" alt="ختم الجهة" />
+                    }
+                    else
+                    {
+                        <span class="review-sign-empty">غير موجود</span>
+                    }
+                </figure>
+            </div>
+        </section>
+
+        <div class="review-actions">
+            <a asp-action="Index" class="dga-btn dga-btn--secondary">إلغاء</a>
+            <button type="button" class="dga-btn dga-btn--primary" id="confirmOpen">تأكيد القرار</button>
         </div>
-    </div>
-    <div class="form-footer-bar">
-        <button type="button" class="btn btn-ghost" onclick="history.back()">إلغاء</button>
-        <button type="submit" class="btn btn-primary">تأكيد القرار</button>
-    </div>
-</form>
+
+        <dialog class="dga-dialog" id="confirmDialog" aria-labelledby="confirm-title">
+            <div class="dga-dialog-icon" aria-hidden="true"><svg class="ico"><use href="#i-check" /></svg></div>
+            <h2 id="confirm-title"></h2>
+            <p>لا يمكن تعديل القرار بعد تأكيده.</p>
+            <div class="dga-dialog-actions">
+                <button type="button" class="dga-btn dga-btn--secondary" data-dialog-close>رجوع</button>
+                <button type="submit" class="dga-btn dga-btn--primary">تأكيد</button>
+            </div>
+        </dialog>
+    </form>
+
+</div>
 
 @section Scripts {
     <script>
-        // ⚠️ إصلاح: الملاحظات تصبح إلزامية بالواجهة فوراً عند اختيار "إعادة للتعديل"، اختيارية عند "موافقة"
         (function () {
-            var radios = document.querySelectorAll('input[name="action"]');
-            var notesInput = document.getElementById('approverNotes');
-            var notesLabel = document.getElementById('notesLabel');
+            var form = document.getElementById('approvalForm');
+            var notes = document.getElementById('approverNotes');
+            var label = document.getElementById('notesLabel');
+            var hint = document.getElementById('notesHint');
+            var preview = document.getElementById('signPreview');
+            var dialog = document.getElementById('confirmDialog');
 
-            radios.forEach(function (r) {
-                r.addEventListener('change', function () {
-                    if (r.value === 'return' && r.checked) {
-                        notesInput.required = true;
-                        notesLabel.innerHTML = 'ملاحظات <span class="req">*</span> (إلزامي)';
-                    } else if (r.value === 'approve' && r.checked) {
-                        notesInput.required = false;
-                        notesLabel.innerText = 'ملاحظات (اختيارية)';
-                    }
-                });
-            });
+            // الملاحظات إلزامية مع الإعادة، اختيارية مع الاعتماد — والتوقيع يظهر مع الاعتماد فقط
+            function sync() {
+                var chosen = form.querySelector('input[name="action"]:checked');
+                var isReturn = chosen && chosen.value === 'return';
+                notes.required = isReturn;
+                label.innerHTML = isReturn ? 'سبب الإعادة <span class="req">*</span>' : 'الملاحظات';
+                hint.hidden = !isReturn;
+                preview.hidden = !chosen || isReturn;
+            }
+            form.querySelectorAll('input[name="action"]').forEach(function (r) { r.addEventListener('change', sync); });
+            sync();
 
-            document.getElementById('approvalForm').addEventListener('submit', function (e) {
-                var returnSelected = document.querySelector('input[name="action"][value="return"]').checked;
-                if (returnSelected && !notesInput.value.trim()) {
-                    e.preventDefault();
-                    alert('توضيح سبب الإعادة إلزامي عند اختيار "إعادة للتعديل".');
-                }
+            // التحقق ثم نافذة التأكيد
+            document.getElementById('confirmOpen').addEventListener('click', function () {
+                if (!notes.value.trim()) notes.value = '';
+                if (!form.reportValidity()) return;
+                var isReturn = form.querySelector('input[name="action"]:checked').value === 'return';
+                document.getElementById('confirm-title').textContent = isReturn ? 'إعادة التقرير للتعديل؟' : 'اعتماد التقرير؟';
+                dialog.showModal();
             });
         })();
     </script>
